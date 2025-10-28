@@ -1,0 +1,221 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Panel - SPSCon 2025{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2><i class="bi bi-gear"></i> Admin Panel - Presenter Management</h2>
+        <p class="text-muted">Assign and manage presenter-poster relationships</p>
+    </div>
+</div>
+
+<!-- Statistics -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="stat-number">{{ posters|length }}</div>
+            <div>Total Posters</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="stat-number">{{ posters|selectattr('presenter_id')|list|length }}</div>
+            <div>Assigned Posters</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="stat-number">{{ users|length }}</div>
+            <div>Registered Users</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="stat-number">{{ posters|length - (posters|selectattr('presenter_id')|list|length) }}</div>
+            <div>Unassigned Posters</div>
+        </div>
+    </div>
+</div>
+
+<!-- Poster Management Table -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="bi bi-table"></i> Poster Assignments</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Poster #</th>
+                                <th>Title</th>
+                                <th>Author</th>
+                                <th>Institution</th>
+                                <th>Current Presenter</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for poster in posters %}
+                            <tr>
+                                <td>{{ poster.poster_number }}</td>
+                                <td>{{ poster.title[:50] }}{% if poster.title|length > 50 %}...{% endif %}</td>
+                                <td>{{ poster.get_full_name() }}</td>
+                                <td>{{ poster.institution }}</td>
+                                <td>
+                                    {% if poster.presenter %}
+                                        <span class="badge bg-success">{{ poster.presenter.get_full_name() }}</span>
+                                        {% if poster.presenter.first_name and poster.presenter.last_name %}
+                                        <br><small class="text-muted">{{ poster.presenter.username }}</small>
+                                        {% endif %}
+                                    {% else %}
+                                        <span class="badge bg-secondary">Unassigned</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="d-flex gap-2">
+                                        <select class="form-select form-select-sm" id="presenterSelect{{ poster.id }}" style="width: 150px;">
+                                            <option value="">Unassign</option>
+                                            {% for user in users %}
+                                            <option value="{{ user.id }}" {% if poster.presenter_id == user.id %}selected{% endif %}>
+                                                {{ user.get_full_name() }}{% if user.first_name and user.last_name %} ({{ user.username }}){% endif %}
+                                            </option>
+                                            {% endfor %}
+                                        </select>
+                                        <button class="btn btn-sm btn-primary" onclick="assignPresenter({{ poster.id }})">
+                                            <i class="bi bi-check"></i> Assign
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="row mt-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="bi bi-lightning"></i> Quick Actions</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <button class="btn btn-outline-primary" onclick="autoAssignByName()">
+                        <i class="bi bi-magic"></i> Auto-assign by Name Match
+                    </button>
+                    <button class="btn btn-outline-warning" onclick="unassignAll()">
+                        <i class="bi bi-x-circle"></i> Unassign All Posters
+                    </button>
+                    <a href="{{ url_for('my_posters') }}" class="btn btn-outline-info">
+                        <i class="bi bi-person-badge"></i> View My Posters
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="bi bi-info-circle"></i> Instructions</h5>
+            </div>
+            <div class="card-body">
+                <ul class="mb-0">
+                    <li>Select a user from the dropdown and click "Assign" to assign them to a poster</li>
+                    <li>Users can manage posters if their first and last name exactly match the author's name</li>
+                    <li>Use "Auto-assign by Name Match" to automatically assign based on first/last name matching</li>
+                    <li>Presenters can toggle their availability status on their assigned posters</li>
+                    <li><strong>Note:</strong> Users must register with their real first and last names for matching to work</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function assignPresenter(posterId) {
+    const select = document.getElementById(`presenterSelect${posterId}`);
+    const userId = select.value;
+    
+    fetch('/admin/assign-presenter', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            poster_id: posterId,
+            user_id: userId || null
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            showToast(data.message, 'success');
+            // Reload page to update assignments
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showToast(data.message, 'danger');
+        }
+    })
+    .catch(error => {
+        showToast('Error assigning presenter', 'danger');
+    });
+}
+
+function autoAssignByName() {
+    if (confirm('This will automatically assign users to posters based on name matching. Continue?')) {
+        fetch('/admin/auto-assign', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                showToast(`Auto-assigned ${data.assigned_count} posters`, 'success');
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                showToast(data.message, 'danger');
+            }
+        })
+        .catch(error => {
+            showToast('Error during auto-assignment', 'danger');
+        });
+    }
+}
+
+function unassignAll() {
+    if (confirm('This will unassign ALL posters. Are you sure?')) {
+        fetch('/admin/unassign-all', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                showToast('All posters unassigned', 'success');
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                showToast(data.message, 'danger');
+            }
+        })
+        .catch(error => {
+            showToast('Error unassigning posters', 'danger');
+        });
+    }
+}
+</script>
+{% endblock %}

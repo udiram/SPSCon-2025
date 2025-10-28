@@ -1,0 +1,283 @@
+{% extends "base.html" %}
+
+{% block title %}Analytics - SPSCon 2025{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2><i class="bi bi-bar-chart"></i> Conference Analytics</h2>
+        <p class="text-muted">Real-time statistics and engagement metrics</p>
+    </div>
+</div>
+
+<!-- Statistics Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="stat-number">{{ total_visits }}</div>
+            <div>Total Visits</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="stat-number">{{ unique_visitors }}</div>
+            <div>Unique Visitors</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="stat-number">{{ most_visited_posters|length }}</div>
+            <div>Active Posters</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="stat-number">{{ institution_engagement|length }}</div>
+            <div>Engaged Institutions</div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Most Visited Posters -->
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="bi bi-trophy"></i> Most Visited Posters</h5>
+            </div>
+            <div class="card-body">
+                {% if most_visited_posters %}
+                    <div class="list-group">
+                        {% for poster, visit_count in most_visited_posters %}
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="mb-1">Poster #{{ poster.poster_number }}</h6>
+                                <p class="mb-1 small">{{ poster.title[:60] }}{% if poster.title|length > 60 %}...{% endif %}</p>
+                                <small class="text-muted">{{ poster.get_full_name() }} - {{ poster.institution }}</small>
+                            </div>
+                            <span class="badge bg-primary rounded-pill">{{ visit_count }} visits</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="text-center py-3">
+                        <i class="bi bi-bar-chart text-muted display-4"></i>
+                        <p class="text-muted mt-2">No visit data yet</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Institution Engagement -->
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="bi bi-building"></i> Institution Engagement</h5>
+            </div>
+            <div class="card-body">
+                {% if institution_engagement %}
+                    <div class="list-group">
+                        {% for institution, visits in institution_engagement %}
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="mb-1">{{ institution }}</h6>
+                                <small class="text-muted">{{ visits }} total visits</small>
+                            </div>
+                            <span class="badge bg-success rounded-pill">{{ visits }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="text-center py-3">
+                        <i class="bi bi-building text-muted display-4"></i>
+                        <p class="text-muted mt-2">No engagement data yet</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Row -->
+<div class="row">
+    <!-- Visit Trends Chart -->
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="bi bi-graph-up"></i> Visit Trends</h5>
+            </div>
+            <div class="card-body">
+                <div id="visit-trends-chart"></div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Category Engagement -->
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="bi bi-pie-chart"></i> Category Engagement</h5>
+            </div>
+            <div class="card-body">
+                <div id="category-engagement-chart"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Real-time Updates -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5><i class="bi bi-activity"></i> Live Updates</h5>
+                <div>
+                    <span class="badge bg-success" id="liveIndicator">
+                        <i class="bi bi-circle-fill"></i> Live
+                    </span>
+                    <small class="text-muted ms-2">Updates every 30 seconds</small>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4 text-center">
+                        <h4 id="currentVisits">{{ total_visits }}</h4>
+                        <p class="text-muted">Current Visits</p>
+                    </div>
+                    <div class="col-md-4 text-center">
+                        <h4 id="currentVisitors">{{ unique_visitors }}</h4>
+                        <p class="text-muted">Unique Visitors</p>
+                    </div>
+                    <div class="col-md-4 text-center">
+                        <h4 id="activePosters">{{ most_visited_posters|length }}</h4>
+                        <p class="text-muted">Active Posters</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Visit Trends Chart
+const visitTrendsSvg = d3.select("#visit-trends-chart")
+    .append("svg")
+    .attr("width", "100%")
+    .attr("height", 300);
+
+// Sample data - in a real implementation, this would come from the backend
+const visitTrendsData = [
+    {time: "10:00", visits: 15},
+    {time: "10:30", visits: 28},
+    {time: "11:00", visits: 42},
+    {time: "11:30", visits: 35},
+    {time: "12:00", visits: 38},
+    {time: "12:30", visits: 25}
+];
+
+const margin = {top: 20, right: 30, bottom: 40, left: 40};
+const width = 400 - margin.left - margin.right;
+const height = 300 - margin.top - margin.bottom;
+
+const g = visitTrendsSvg.append("g")
+    .attr("transform", `translate(${margin.left},${margin.top})`);
+
+const x = d3.scaleBand()
+    .domain(visitTrendsData.map(d => d.time))
+    .range([0, width])
+    .padding(0.1);
+
+const y = d3.scaleLinear()
+    .domain([0, d3.max(visitTrendsData, d => d.visits)])
+    .range([height, 0]);
+
+g.selectAll(".bar")
+    .data(visitTrendsData)
+    .enter().append("rect")
+    .attr("class", "bar")
+    .attr("x", d => x(d.time))
+    .attr("y", d => y(d.visits))
+    .attr("width", x.bandwidth())
+    .attr("height", d => height - y(d.visits))
+    .attr("fill", "#3498db");
+
+g.append("g")
+    .attr("transform", `translate(0,${height})`)
+    .call(d3.axisBottom(x));
+
+g.append("g")
+    .call(d3.axisLeft(y));
+
+// Category Engagement Chart
+const categoryEngagementSvg = d3.select("#category-engagement-chart")
+    .append("svg")
+    .attr("width", "100%")
+    .attr("height", 300);
+
+// Sample data
+const categoryEngagementData = [
+    {category: "Research", visits: 45},
+    {category: "Careers", visits: 28},
+    {category: "Phase Shifts", visits: 15},
+    {category: "Sigma Pi Sigma", visits: 12}
+];
+
+const pie = d3.pie()
+    .value(d => d.visits)
+    .sort(null);
+
+const arc = d3.arc()
+    .innerRadius(60)
+    .outerRadius(120);
+
+const color = d3.scaleOrdinal()
+    .domain(categoryEngagementData.map(d => d.category))
+    .range(["#3498db", "#e74c3c", "#2ecc71", "#f39c12"]);
+
+const categoryG = categoryEngagementSvg.append("g")
+    .attr("transform", "translate(200, 150)");
+
+const arcs = categoryG.selectAll(".arc")
+    .data(pie(categoryEngagementData))
+    .enter().append("g")
+    .attr("class", "arc");
+
+arcs.append("path")
+    .attr("d", arc)
+    .attr("fill", (d, i) => color(d.data.category))
+    .attr("stroke", "#fff")
+    .attr("stroke-width", 2);
+
+arcs.append("text")
+    .attr("transform", d => `translate(${arc.centroid(d)})`)
+    .attr("text-anchor", "middle")
+    .attr("font-size", "12px")
+    .attr("fill", "white")
+    .text(d => d.data.visits);
+
+// Real-time updates simulation
+setInterval(() => {
+    // Simulate live updates
+    const currentVisits = parseInt(document.getElementById('currentVisits').textContent);
+    const currentVisitors = parseInt(document.getElementById('currentVisitors').textContent);
+    
+    // Random small increments
+    const newVisits = currentVisits + Math.floor(Math.random() * 3);
+    const newVisitors = currentVisitors + Math.floor(Math.random() * 2);
+    
+    document.getElementById('currentVisits').textContent = newVisits;
+    document.getElementById('currentVisitors').textContent = newVisitors;
+    
+    // Flash the live indicator
+    const indicator = document.getElementById('liveIndicator');
+    indicator.style.opacity = '0.5';
+    setTimeout(() => {
+        indicator.style.opacity = '1';
+    }, 200);
+}, 30000);
+</script>
+{% endblock %}
+

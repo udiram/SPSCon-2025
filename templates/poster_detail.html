@@ -1,0 +1,289 @@
+{% extends "base.html" %}
+
+{% block title %}{{ poster.title[:50] }}... - SPSCon 2025{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h4><i class="bi bi-file-post"></i> Poster #{{ poster.poster_number }}</h4>
+                    <div>
+                        <span class="badge bg-info me-2">Session {{ poster.session }}</span>
+                        <span class="badge bg-secondary">{{ poster.get_category_name() }}</span>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                <h5 class="card-title">{{ poster.title }}</h5>
+                <h6 class="card-subtitle mb-3 text-muted">{{ poster.get_full_name() }}</h6>
+                <p class="card-text"><strong>Institution:</strong> {{ poster.institution }}</p>
+                
+                <!-- Action Buttons -->
+                <div class="d-flex gap-2 mb-4">
+                    <button class="btn btn-outline-danger favorite-btn {% if is_favorited %}favorited{% endif %}" 
+                            onclick="toggleFavoriteAPI({{ poster.id }})" id="favoriteBtn{{ poster.id }}" data-poster-id="{{ poster.id }}">
+                        <i class="bi bi-heart{% if is_favorited %}-fill{% endif %}"></i>
+                        {% if is_favorited %}Remove from Favorites{% else %}Add to Favorites{% endif %}
+                    </button>
+                    
+                    <button class="btn btn-outline-success visit-btn" onclick="markVisitedAPI({{ poster.id }})" id="visitBtn{{ poster.id }}" data-poster-id="{{ poster.id }}">
+                        <i class="bi bi-check-circle"></i>
+                        {% if has_visited %}Visited{% else %}Mark as Visited{% endif %}
+                    </button>
+                    
+                    {% if can_manage %}
+                    <button class="btn btn-outline-warning" onclick="togglePresenterStatus({{ poster.id }})" id="statusBtn{{ poster.id }}">
+                        <i class="bi bi-person-check"></i>
+                        {% if is_available %}Available{% else %}Not Available{% endif %}
+                    </button>
+                    {% endif %}
+                </div>
+                
+                <!-- Presenter Assignment Info -->
+                {% if poster.presenter %}
+                <div class="alert alert-info">
+                    <i class="bi bi-person-check"></i> <strong>Assigned Presenter:</strong> {{ poster.presenter.get_full_name() }}{% if poster.presenter.first_name and poster.presenter.last_name %} ({{ poster.presenter.username }}){% endif %}
+                </div>
+                {% elif can_manage %}
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle"></i> <strong>You can manage this poster</strong> - Name matches: {{ poster.get_full_name() }}
+                </div>
+                {% endif %}
+                
+                <!-- Tags -->
+                {% if poster.tags %}
+                <div class="mb-3">
+                    <strong>Tags:</strong>
+                    {% for tag in poster.tags|from_json %}
+                    <span class="badge bg-light text-dark me-1">{{ tag }}</span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Similar Posters -->
+        {% if similar_posters %}
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5><i class="bi bi-lightbulb"></i> Similar Posters</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    {% for similar_poster in similar_posters %}
+                    <div class="col-md-6 mb-3">
+                        <div class="card">
+                            <div class="card-body">
+                                <h6 class="card-title">Poster #{{ similar_poster.poster_number }}</h6>
+                                <p class="card-text small">{{ similar_poster.title[:80] }}{% if similar_poster.title|length > 80 %}...{% endif %}</p>
+                                <p class="card-text small text-muted">{{ similar_poster.get_full_name() }}</p>
+                                <p class="card-text small text-muted">{{ similar_poster.institution }}</p>
+                                <a href="{{ url_for('poster_detail', poster_id=similar_poster.id) }}" class="btn btn-sm btn-outline-primary">
+                                    <i class="bi bi-eye"></i> View
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    
+    <div class="col-md-4">
+        <!-- QR Code -->
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="bi bi-qr-code"></i> QR Code</h5>
+            </div>
+            <div class="card-body text-center">
+                {% if poster.qr_code_data %}
+                <img src="{{ poster.qr_code_data }}" alt="QR Code" class="img-fluid mb-3">
+                {% else %}
+                <div class="text-muted">
+                    <i class="bi bi-qr-code display-1"></i>
+                    <p>QR Code not available</p>
+                </div>
+                {% endif %}
+                <p class="small text-muted">Scan to share this poster</p>
+            </div>
+        </div>
+        
+        <!-- Presenter Status -->
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5><i class="bi bi-person-check"></i> Presenter Status</h5>
+            </div>
+            <div class="card-body">
+                <div class="text-center">
+                    <div id="statusIndicator{{ poster.id }}" class="mb-3">
+                        {% if is_available %}
+                        <i class="bi bi-person-check-fill text-success display-4"></i>
+                        <p class="text-success">Available at Poster</p>
+                        {% else %}
+                        <i class="bi bi-person-x text-muted display-4"></i>
+                        <p class="text-muted">Not Available</p>
+                        {% endif %}
+                    </div>
+                    <p class="small text-muted">Status updates in real-time</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Conference Info -->
+        <div class="conference-info mt-3">
+            <h6><i class="bi bi-calendar-event"></i> Session Information</h6>
+            {% if poster.session == 1 %}
+            <p class="mb-1"><strong>Session I:</strong> Friday, October 31, 10:30 AM – 12:00 PM</p>
+            {% else %}
+            <p class="mb-1"><strong>Session II:</strong> Saturday, November 1, 11:30 AM – 1:00 PM</p>
+            {% endif %}
+            <p class="mb-0"><strong>Location:</strong> Exhibit Hall</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Simple, direct functions that work immediately
+function toggleFavoriteAPI(posterId) {
+    console.log('toggleFavoriteAPI called for poster:', posterId);
+    
+    const favorites = JSON.parse(localStorage.getItem('spscon_favorites') || '[]');
+    const index = favorites.indexOf(posterId);
+    
+    if (index > -1) {
+        favorites.splice(index, 1);
+        showToast('Removed from favorites!', 'info');
+    } else {
+        favorites.push(posterId);
+        showToast('Added to favorites!', 'success');
+    }
+    
+    localStorage.setItem('spscon_favorites', JSON.stringify(favorites));
+    updateFavoriteButton(posterId);
+}
+
+function markVisitedAPI(posterId) {
+    console.log('markVisitedAPI called for poster:', posterId);
+    
+    const visited = JSON.parse(localStorage.getItem('spscon_visited') || '[]');
+    
+    if (!visited.includes(posterId)) {
+        visited.push(posterId);
+        localStorage.setItem('spscon_visited', JSON.stringify(visited));
+        updateVisitedButton(posterId);
+        showToast('Marked as visited!', 'success');
+    } else {
+        showToast('Already marked as visited', 'info');
+    }
+}
+
+function updateFavoriteButton(posterId) {
+    const btn = document.getElementById(`favoriteBtn${posterId}`);
+    if (!btn) return;
+    
+    const favorites = JSON.parse(localStorage.getItem('spscon_favorites') || '[]');
+    const isFavorite = favorites.includes(posterId);
+    
+    if (isFavorite) {
+        btn.innerHTML = '<i class="bi bi-heart-fill"></i> Remove from Favorites';
+        btn.classList.add('favorited');
+    } else {
+        btn.innerHTML = '<i class="bi bi-heart"></i> Add to Favorites';
+        btn.classList.remove('favorited');
+    }
+}
+
+function updateVisitedButton(posterId) {
+    const btn = document.getElementById(`visitBtn${posterId}`);
+    if (!btn) return;
+    
+    const visited = JSON.parse(localStorage.getItem('spscon_visited') || '[]');
+    const isVisited = visited.includes(posterId);
+    
+    if (isVisited) {
+        btn.innerHTML = '<i class="bi bi-check-circle"></i> Visited';
+        btn.classList.add('btn-success');
+        btn.classList.remove('btn-outline-success');
+    } else {
+        btn.innerHTML = '<i class="bi bi-check-circle"></i> Mark as Visited';
+        btn.classList.remove('btn-success');
+        btn.classList.add('btn-outline-success');
+    }
+}
+
+// Initialize button states on page load
+document.addEventListener('DOMContentLoaded', function() {
+    const posterId = {{ poster.id }};
+    updateFavoriteButton(posterId);
+    updateVisitedButton(posterId);
+});
+
+function togglePresenterStatus(posterId) {
+    const btn = document.getElementById(`statusBtn${posterId}`);
+    const indicator = document.getElementById(`statusIndicator${posterId}`);
+    const originalText = showLoading(btn);
+    
+    fetch(`/api/presenter-status/${posterId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        hideLoading(btn, originalText);
+        
+        if (data.is_available) {
+            btn.innerHTML = '<i class="bi bi-person-check"></i> Available';
+            btn.classList.add('btn-warning');
+            btn.classList.remove('btn-outline-warning');
+            indicator.innerHTML = `
+                <i class="bi bi-person-check-fill text-success display-4"></i>
+                <p class="text-success">Available at Poster</p>
+            `;
+        } else {
+            btn.innerHTML = '<i class="bi bi-person-x"></i> Not Available';
+            btn.classList.remove('btn-warning');
+            btn.classList.add('btn-outline-warning');
+            indicator.innerHTML = `
+                <i class="bi bi-person-x text-muted display-4"></i>
+                <p class="text-muted">Not Available</p>
+            `;
+        }
+        
+        showToast(data.message, 'info');
+    })
+    .catch(error => {
+        hideLoading(btn, originalText);
+        showToast('Error updating status', 'danger');
+    });
+}
+
+// Poll for status updates every 30 seconds
+setInterval(() => {
+    fetch(`/api/presenter-status/{{ poster.id }}`)
+    .then(response => response.json())
+    .then(data => {
+        const indicator = document.getElementById(`statusIndicator{{ poster.id }}`);
+        if (data.is_available) {
+            indicator.innerHTML = `
+                <i class="bi bi-person-check-fill text-success display-4"></i>
+                <p class="text-success">Available at Poster</p>
+            `;
+        } else {
+            indicator.innerHTML = `
+                <i class="bi bi-person-x text-muted display-4"></i>
+                <p class="text-muted">Not Available</p>
+            `;
+        }
+    })
+    .catch(error => console.log('Error polling status'));
+}, 30000);
+</script>
+{% endblock %}

@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+
+{% block title %}Visited Posters - SPSCon 2025{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h4><i class="bi bi-check-circle-fill"></i> Visited Posters</h4>
+                <div>
+                    <span class="badge bg-success" id="visitedCount">{{ posters|length }} visited</span>
+                    {% if not current_user.is_authenticated %}
+                    <span class="badge bg-warning ms-2">Local Storage</span>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="card-body">
+                <div id="visitedContainer">
+                    {% if posters %}
+                        <div class="row" id="serverVisited">
+                            {% for poster in posters %}
+                            <div class="col-md-6 col-lg-4 mb-3">
+                                <div class="card h-100 poster-card" data-poster-id="{{ poster.id }}">
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between align-items-start mb-2">
+                                            <h6 class="card-title mb-0">Poster #{{ poster.poster_number }}</h6>
+                                            <span class="badge bg-info">Session {{ poster.session }}</span>
+                                        </div>
+                                        
+                                        <h6 class="card-subtitle mb-2 text-muted">{{ poster.get_full_name() }}</h6>
+                                        <p class="card-text small">{{ poster.institution }}</p>
+                                        <p class="card-text">{{ poster.title[:100] }}{% if poster.title|length > 100 %}...{% endif %}</p>
+                                        
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <span class="badge bg-secondary">{{ poster.get_category_name() }}</span>
+                                            <a href="{{ url_for('poster_detail', poster_id=poster.id) }}" class="btn btn-sm btn-outline-primary">
+                                                <i class="bi bi-eye"></i> View Details
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-center py-5" id="noVisitedMessage">
+                            <i class="bi bi-check-circle display-1 text-muted"></i>
+                            <h4 class="mt-3">No visited posters yet</h4>
+                            <p class="text-muted">Start exploring posters and mark them as visited!</p>
+                            <a href="{{ url_for('search') }}" class="btn btn-primary">
+                                <i class="bi bi-search"></i> Browse Posters
+                            </a>
+                        </div>
+                    {% endif %}
+                </div>
+                
+                <!-- Export Visited -->
+                <div class="text-center mt-4">
+                    <button class="btn btn-success" onclick="exportVisited()">
+                        <i class="bi bi-download"></i> Export Visited to PDF
+                    </button>
+                    {% if not current_user.is_authenticated %}
+                    <button class="btn btn-info ms-2" onclick="localStorageManager.exportData()">
+                        <i class="bi bi-download"></i> Export All Data
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Load visited from local storage for anonymous users
+document.addEventListener('DOMContentLoaded', function() {
+    if (!document.body.classList.contains('user-logged-in')) {
+        loadLocalVisited();
+    }
+});
+
+async function loadLocalVisited() {
+    const visited = JSON.parse(localStorage.getItem('spscon_visited') || '[]');
+    if (visited.length === 0) return;
+    
+    try {
+        // Fetch poster details for local visited
+        const response = await fetch('/api/posters-by-ids', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ poster_ids: visited })
+        });
+        
+        if (response.ok) {
+            const posters = await response.json();
+            displayLocalVisited(posters);
+        }
+    } catch (error) {
+        console.error('Error loading local visited:', error);
+    }
+}
+
+function displayLocalVisited(posters) {
+    const container = document.getElementById('visitedContainer');
+    const visitedCount = document.getElementById('visitedCount');
+    
+    if (posters.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-5" id="noVisitedMessage">
+                <i class="bi bi-check-circle display-1 text-muted"></i>
+                <h4 class="mt-3">No visited posters yet</h4>
+                <p class="text-muted">Start exploring posters and mark them as visited!</p>
+                <a href="{{ url_for('search') }}" class="btn btn-primary">
+                    <i class="bi bi-search"></i> Browse Posters
+                </a>
+            </div>
+        `;
+        visitedCount.textContent = '0 visited';
+        return;
+    }
+    
+    let html = '<div class="row">';
+    posters.forEach(poster => {
+        html += `
+            <div class="col-md-6 col-lg-4 mb-3">
+                <div class="card h-100 poster-card" data-poster-id="${poster.id}">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <h6 class="card-title mb-0">Poster #${poster.poster_number}</h6>
+                            <span class="badge bg-info">Session ${poster.session}</span>
+                        </div>
+                        
+                        <h6 class="card-subtitle mb-2 text-muted">${poster.first_name} ${poster.last_name}</h6>
+                        <p class="card-text small">${poster.institution}</p>
+                        <p class="card-text">${poster.title.length > 100 ? poster.title.substring(0, 100) + '...' : poster.title}</p>
+                        
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="badge bg-secondary">${poster.category || 'Research'}</span>
+                            <a href="/poster/${poster.id}" class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-eye"></i> View Details
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    html += '</div>';
+    
+    container.innerHTML = html;
+    visitedCount.textContent = `${posters.length} visited`;
+}
+
+function exportVisited() {
+    // Get visited from appropriate source
+    let visited;
+    if (document.body.classList.contains('user-logged-in')) {
+        visited = {{ posters | tojson }};
+    } else {
+        // For anonymous users, we'll need to get the data differently
+        visited = localStorageManager.getVisited().map(id => ({ id: id }));
+    }
+    
+    // Simple PDF export using browser print functionality
+    const printWindow = window.open('', '_blank');
+    
+    let html = `
+        <html>
+        <head>
+            <title>SPSCon 2025 - Visited Posters</title>
+            <style>
+                body { font-family: Arial, sans-serif; margin: 20px; }
+                h1 { color: #2c3e50; }
+                .poster { margin-bottom: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+                .poster-number { font-weight: bold; color: #27ae60; }
+                .author { color: #7f8c8d; }
+                .institution { color: #95a5a6; font-size: 0.9em; }
+                .title { margin: 10px 0; }
+                .category { background: #ecf0f1; padding: 2px 8px; border-radius: 3px; font-size: 0.8em; }
+            </style>
+        </head>
+        <body>
+            <h1>SPSCon 2025 - Visited Posters</h1>
+            <p>Generated on: ${new Date().toLocaleDateString()}</p>
+    `;
+    
+    visited.forEach(poster => {
+        html += `
+            <div class="poster">
+                <div class="poster-number">Poster #${poster.poster_number || poster.id} - Session ${poster.session || 'N/A'}</div>
+                <div class="author">${poster.first_name || 'Unknown'} ${poster.last_name || 'Author'}</div>
+                <div class="institution">${poster.institution || 'Unknown Institution'}</div>
+                <div class="title">${poster.title || 'Title not available'}</div>
+                <div class="category">${poster.category || 'Research'}</div>
+            </div>
+        `;
+    });
+    
+    html += '</body></html>';
+    
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.print();
+}
+</script>
+{% endblock %}

@@ -1,0 +1,420 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - SPSCon 2025{% endblock %}
+
+{% block content %}
+<!-- Conference Information Banner -->
+<div class="conference-info">
+    <div class="row">
+        <div class="col-md-8">
+            <h3><i class="bi bi-calendar-event"></i> SPSCon 2025 Conference</h3>
+            <div class="row">
+                <div class="col-md-6">
+                    <p class="mb-1"><strong>Session I:</strong> Friday, October 31, 10:30 AM – 12:00 PM</p>
+                    <p class="mb-1"><strong>Session II:</strong> Saturday, November 1, 11:30 AM – 1:00 PM</p>
+                </div>
+                <div class="col-md-6">
+                    <p class="mb-1"><strong>Setup Time:</strong> Thursday, October 30, 6:15 PM – 7:00 PM</p>
+                    <p class="mb-0"><strong>Location:</strong> Exhibit Hall</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 text-end">
+            <h4>{{ total_posters }} Posters</h4>
+            {% if current_user.is_authenticated %}
+            <p class="mb-0">{{ total_users }} Registered Users</p>
+            {% endif %}
+            {% if not current_user.is_authenticated %}
+            <div class="mt-2">
+                <a href="{{ url_for('search') }}" class="btn btn-light btn-sm">
+                    <i class="bi bi-search"></i> Start browsing
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Statistics Cards -->
+<div class="row mb-4 g-4">
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="stat-number">{{ total_posters }}</div>
+            <div>Total Posters</div>
+        </div>
+    </div>
+    {% if current_user.is_authenticated %}
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="stat-number">{{ total_users }}</div>
+            <div>Registered Users</div>
+        </div>
+    </div>
+    {% endif %}
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="stat-number">{{ total_visits }}</div>
+            <div>Total Visits</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <a href="{{ url_for('institutions_list') }}" class="text-decoration-none d-block">
+            <div class="stat-card clickable">
+                <div class="stat-number">{{ institutions|length }}</div>
+                <div>Institutions</div>
+            </div>
+        </a>
+    </div>
+</div>
+
+<!-- Quick Search -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="search-card">
+            <h4><i class="bi bi-search"></i> Quick Search</h4>
+            <form action="{{ url_for('search') }}" method="GET" id="quickSearchForm">
+                <div class="row">
+                    <div class="col-md-8">
+                        <input type="text" class="form-control" name="q" placeholder="Search posters by title, author, institution, or keywords..." id="searchInput" autocomplete="off">
+                        <div class="search-suggestions" id="searchSuggestions" style="display: none;"></div>
+                    </div>
+                    <div class="col-md-4">
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="bi bi-search"></i> Search
+                        </button>
+                    </div>
+                </div>
+            </form>
+            
+            <!-- Quick Filter Buttons -->
+            <div class="mt-3">
+                <div class="d-flex flex-wrap gap-2">
+                    <a href="{{ url_for('search', category='Research') }}" class="btn btn-outline-primary btn-sm">
+                        <i class="bi bi-microscope"></i> Research Posters
+                    </a>
+                    <a href="{{ url_for('search', category='Careers and Corporate Internships') }}" class="btn btn-outline-success btn-sm">
+                        <i class="bi bi-briefcase"></i> Career Posters
+                    </a>
+                    <a href="{{ url_for('search', available='true') }}" class="btn btn-outline-warning btn-sm">
+                        <i class="bi bi-person-check"></i> Available Presenters
+                    </a>
+                    {% if not current_user.is_authenticated %}
+                    <button class="btn btn-outline-info btn-sm" onclick="showLocalStorageInfo()">
+                        <i class="bi bi-info-circle"></i> Guest Mode Info
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Row -->
+<div class="row">
+    <!-- Category Distribution -->
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="bi bi-pie-chart"></i> Poster Categories</h5>
+            </div>
+            <div class="card-body">
+                <div id="category-chart"></div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Session Distribution -->
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="bi bi-bar-chart"></i> Session Distribution</h5>
+            </div>
+            <div class="card-body">
+                <div id="session-chart"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Top Institutions -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="bi bi-building"></i> Top Institutions by Poster Count</h5>
+            </div>
+            <div class="card-body">
+                <div id="institution-chart"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="row mt-4">
+    <div class="col-md-3">
+        <a href="{{ url_for('search') }}" class="btn btn-outline-primary w-100">
+            <i class="bi bi-search"></i><br>Search Posters
+        </a>
+    </div>
+    <div class="col-md-3">
+        <a href="{{ url_for('favorites') }}" class="btn btn-outline-success w-100 local-storage-indicator">
+            <i class="bi bi-heart"></i><br>My Favorites
+            <span class="badge bg-danger favorites-count ms-1">0</span>
+        </a>
+    </div>
+    {% if current_user.is_authenticated %}
+    <div class="col-md-3">
+        <a href="{{ url_for('analytics') }}" class="btn btn-outline-info w-100">
+            <i class="bi bi-bar-chart"></i><br>Analytics
+        </a>
+    </div>
+    <div class="col-md-3">
+        <a href="{{ url_for('my_posters') }}" class="btn btn-outline-warning w-100">
+            <i class="bi bi-person-badge"></i><br>My Posters
+        </a>
+    </div>
+    {% else %}
+    <div class="col-md-3">
+        <button class="btn btn-outline-info w-100" onclick="showLocalStorageInfo()">
+            <i class="bi bi-info-circle"></i><br>Guest Mode Info
+        </button>
+    </div>
+    <div class="col-md-3">
+        <a href="{{ url_for('login') }}" class="btn btn-outline-warning w-100">
+            <i class="bi bi-box-arrow-in-right"></i><br>Login for More
+        </a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Category Distribution Pie Chart
+const categoryData = {{ categories | tojson }};
+const categoryColors = ['#3498db', '#e74c3c', '#2ecc71', '#f39c12'];
+
+const categorySvg = d3.select("#category-chart")
+    .append("svg")
+    .attr("width", 400)
+    .attr("height", 300);
+
+const categoryPie = d3.pie()
+    .value(d => d[1])
+    .sort(null);
+
+const categoryArc = d3.arc()
+    .innerRadius(60)
+    .outerRadius(120);
+
+const categoryG = categorySvg.append("g")
+    .attr("transform", "translate(200, 150)");
+
+const categoryArcs = categoryG.selectAll(".arc")
+    .data(categoryPie(Object.entries(categoryData)))
+    .enter().append("g")
+    .attr("class", "arc");
+
+categoryArcs.append("path")
+    .attr("d", categoryArc)
+    .attr("fill", (d, i) => categoryColors[i % categoryColors.length])
+    .attr("stroke", "#fff")
+    .attr("stroke-width", 2);
+
+categoryArcs.append("text")
+    .attr("transform", d => `translate(${categoryArc.centroid(d)})`)
+    .attr("text-anchor", "middle")
+    .attr("font-size", "12px")
+    .attr("fill", "white")
+    .text(d => d.data[0]);
+
+// Legend
+const legend = categorySvg.append("g")
+    .attr("transform", "translate(20, 20)");
+
+const legendItems = legend.selectAll(".legend-item")
+    .data(Object.entries(categoryData))
+    .enter().append("g")
+    .attr("class", "legend-item")
+    .attr("transform", (d, i) => `translate(0, ${i * 20})`);
+
+legendItems.append("rect")
+    .attr("width", 15)
+    .attr("height", 15)
+    .attr("fill", (d, i) => categoryColors[i % categoryColors.length]);
+
+legendItems.append("text")
+    .attr("x", 20)
+    .attr("y", 12)
+    .attr("font-size", "12px")
+    .text(d => `${d[0]} (${d[1]})`);
+
+// Session Distribution Bar Chart
+const sessionData = [
+    {session: "Session I", count: {{ categories.get('Supporting Our Phase Shifts', 0) + categories.get('Careers and Corporate Internships', 0) }}},
+    {session: "Session II", count: {{ categories.get('Sigma Pi Sigma Chapter Activities', 0) + categories.get('Research', 0) }}}
+];
+
+const sessionSvg = d3.select("#session-chart")
+    .append("svg")
+    .attr("width", 400)
+    .attr("height", 300);
+
+const sessionX = d3.scaleBand()
+    .domain(sessionData.map(d => d.session))
+    .range([50, 350])
+    .padding(0.1);
+
+const sessionY = d3.scaleLinear()
+    .domain([0, d3.max(sessionData, d => d.count)])
+    .range([250, 50]);
+
+sessionSvg.selectAll(".bar")
+    .data(sessionData)
+    .enter().append("rect")
+    .attr("class", "bar")
+    .attr("x", d => sessionX(d.session))
+    .attr("y", d => sessionY(d.count))
+    .attr("width", sessionX.bandwidth())
+    .attr("height", d => 250 - sessionY(d.count))
+    .attr("fill", "#3498db");
+
+sessionSvg.selectAll(".bar-label")
+    .data(sessionData)
+    .enter().append("text")
+    .attr("class", "bar-label")
+    .attr("x", d => sessionX(d.session) + sessionX.bandwidth() / 2)
+    .attr("y", d => sessionY(d.count) - 5)
+    .attr("text-anchor", "middle")
+    .attr("font-size", "14px")
+    .text(d => d.count);
+
+sessionSvg.append("g")
+    .attr("transform", "translate(0, 250)")
+    .call(d3.axisBottom(sessionX));
+
+// Institution Chart
+const institutionData = {{ institutions | tojson }};
+const institutionSvg = d3.select("#institution-chart")
+    .append("svg")
+    .attr("width", "100%")
+    .attr("height", 400);
+
+const institutionMargin = {top: 20, right: 30, bottom: 40, left: 200};
+const institutionWidth = 800 - institutionMargin.left - institutionMargin.right;
+const institutionHeight = 400 - institutionMargin.top - institutionMargin.bottom;
+
+const institutionG = institutionSvg.append("g")
+    .attr("transform", `translate(${institutionMargin.left}, ${institutionMargin.top})`);
+
+const institutionY = d3.scaleBand()
+    .domain(institutionData.map(d => d[0]))
+    .range([0, institutionHeight])
+    .padding(0.1);
+
+const institutionX = d3.scaleLinear()
+    .domain([0, d3.max(institutionData, d => d[1])])
+    .range([0, institutionWidth]);
+
+institutionG.selectAll(".bar")
+    .data(institutionData)
+    .enter().append("rect")
+    .attr("class", "bar")
+    .attr("y", d => institutionY(d[0]))
+    .attr("height", institutionY.bandwidth())
+    .attr("x", 0)
+    .attr("width", d => institutionX(d[1]))
+    .attr("fill", "#2ecc71");
+
+institutionG.selectAll(".bar-label")
+    .data(institutionData)
+    .enter().append("text")
+    .attr("class", "bar-label")
+    .attr("x", d => institutionX(d[1]) + 5)
+    .attr("y", d => institutionY(d[0]) + institutionY.bandwidth() / 2)
+    .attr("dy", "0.35em")
+    .attr("font-size", "12px")
+    .text(d => d[1]);
+
+institutionG.append("g")
+    .call(d3.axisLeft(institutionY));
+
+institutionG.append("g")
+    .attr("transform", `translate(0, ${institutionHeight})`)
+    .call(d3.axisBottom(institutionX));
+
+// Guest Mode Info Modal
+function showLocalStorageInfo() {
+    const storageInfo = localStorageManager.getStorageInfo();
+    const modal = new bootstrap.Modal(document.getElementById('guestModeModal'));
+    document.getElementById('storageInfo').innerHTML = `
+        <p><strong>Storage Used:</strong> ${storageInfo.totalSizeKB} KB</p>
+        <p><strong>Items Stored:</strong> ${storageInfo.items}</p>
+        <p><strong>Last Visit:</strong> ${storageInfo.lastVisit ? new Date(storageInfo.lastVisit).toLocaleString() : 'Never'}</p>
+    `;
+    modal.show();
+}
+
+// Initialize search suggestions
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('searchInput');
+    if (searchInput) {
+        searchInput.addEventListener('input', function() {
+            const query = this.value.toLowerCase();
+            if (query.length >= 2) {
+                const searchHistory = localStorageManager.getSearchHistory();
+                const matches = searchHistory.filter(item => 
+                    item.toLowerCase().includes(query)
+                ).slice(0, 5);
+                
+                if (matches.length > 0) {
+                    showSearchSuggestions(matches, this);
+                }
+            }
+        });
+        
+        // Save search on form submit
+        const searchForm = document.getElementById('quickSearchForm');
+        if (searchForm) {
+            searchForm.addEventListener('submit', function() {
+                autoSaveSearch(searchInput.value);
+            });
+        }
+    }
+});
+</script>
+
+<!-- Guest Mode Info Modal -->
+<div class="modal fade" id="guestModeModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-info-circle"></i> Guest Mode Information</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info">
+                    <h6><i class="bi bi-lightbulb"></i> You're using Guest Mode!</h6>
+                    <p class="mb-0">All your favorites and visited posters are saved locally in your browser. This means:</p>
+                </div>
+                <ul class="list-unstyled">
+                    <li><i class="bi bi-check-circle text-success"></i> Your data persists between sessions</li>
+                    <li><i class="bi bi-check-circle text-success"></i> No account required</li>
+                    <li><i class="bi bi-check-circle text-success"></i> Works offline</li>
+                    <li><i class="bi bi-exclamation-triangle text-warning"></i> Data is tied to this browser/device</li>
+                </ul>
+                <div id="storageInfo"></div>
+                <div class="mt-3">
+                    <h6>Want more features?</h6>
+                    <p class="small text-muted">Login to sync your data across devices and access analytics.</p>
+                    <a href="{{ url_for('login') }}" class="btn btn-primary btn-sm">
+                        <i class="bi bi-box-arrow-in-right"></i> Login
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

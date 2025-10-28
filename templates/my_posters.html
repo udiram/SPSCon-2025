@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+
+{% block title %}My Posters - SPSCon 2025{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2><i class="bi bi-person-badge"></i> My Posters</h2>
+        <p class="text-muted">Posters you can manage based on name matching or assignment</p>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5><i class="bi bi-file-post"></i> Manageable Posters</h5>
+                <span class="badge bg-primary">{{ posters|length }} posters</span>
+            </div>
+            <div class="card-body">
+                {% if posters %}
+                    <div class="row">
+                        {% for poster in posters %}
+                        <div class="col-md-6 col-lg-4 mb-3">
+                            <div class="card h-100">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between align-items-start mb-2">
+                                        <h6 class="card-title mb-0">Poster #{{ poster.poster_number }}</h6>
+                                        <span class="badge bg-info">Session {{ poster.session }}</span>
+                                    </div>
+                                    
+                                    <h6 class="card-subtitle mb-2 text-muted">{{ poster.get_full_name() }}</h6>
+                                    <p class="card-text small">{{ poster.institution }}</p>
+                                    <p class="card-text">{{ poster.title[:100] }}{% if poster.title|length > 100 %}...{% endif %}</p>
+                                    
+                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                        <span class="badge bg-secondary">{{ poster.get_category_name() }}</span>
+                                        {% if poster.presenter_id == current_user.id %}
+                                        <span class="badge bg-success">Assigned</span>
+                                        {% else %}
+                                        <span class="badge bg-warning">Name Match</span>
+                                        {% endif %}
+                                    </div>
+                                    
+                                    <div class="d-grid gap-2">
+                                        <a href="{{ url_for('poster_detail', poster_id=poster.id) }}" class="btn btn-outline-primary btn-sm">
+                                            <i class="bi bi-eye"></i> View & Manage
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="text-center py-5">
+                        <i class="bi bi-person-badge display-1 text-muted"></i>
+                        <h4 class="mt-3">No manageable posters</h4>
+                        <p class="text-muted">You don't have any posters assigned to you or matching your name.</p>
+                        <p class="text-muted">Contact an administrator to get assigned to your posters.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Instructions -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="bi bi-info-circle"></i> How Poster Management Works</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6><i class="bi bi-check-circle text-success"></i> You can manage posters if:</h6>
+                        <ul>
+                            <li>You are explicitly assigned as the presenter (green "Assigned" badge)</li>
+                            <li>Your first and last name exactly match the author's name (yellow "Name Match" badge)</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <h6><i class="bi bi-gear text-primary"></i> What you can do:</h6>
+                        <ul>
+                            <li>Toggle your availability status ("I'm at my poster")</li>
+                            <li>View visit statistics and analytics</li>
+                            <li>Manage poster details and QR codes</li>
+                            <li>See similar posters and recommendations</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
