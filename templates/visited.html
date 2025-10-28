@@ -58,13 +58,8 @@
                 <!-- Export Visited -->
                 <div class="text-center mt-4">
                     <button class="btn btn-success" onclick="exportVisited()">
-                        <i class="bi bi-download"></i> Export Visited to PDF
+                        <i class="bi bi-download"></i> Export Visited to CSV
                     </button>
-                    {% if not current_user.is_authenticated %}
-                    <button class="btn btn-info ms-2" onclick="localStorageManager.exportData()">
-                        <i class="bi bi-download"></i> Export All Data
-                    </button>
-                    {% endif %}
                 </div>
             </div>
         </div>
@@ -156,55 +151,139 @@ function displayLocalVisited(posters) {
 }
 
 function exportVisited() {
-    // Get visited from appropriate source
-    let visited;
-    if (document.body.classList.contains('user-logged-in')) {
-        visited = {{ posters | tojson }};
-    } else {
-        // For anonymous users, we'll need to get the data differently
-        visited = localStorageManager.getVisited().map(id => ({ id: id }));
+    console.log('exportVisited called');
+    
+    try {
+        // Always use localStorage approach for simplicity
+        console.log('Using localStorage approach');
+        
+        // Get IDs from localStorage
+        let visitedIds;
+        
+        // Try localStorageManager first, fallback to direct localStorage
+        if (typeof localStorageManager !== 'undefined' && localStorageManager) {
+            console.log('Using localStorageManager');
+            visitedIds = localStorageManager.getVisited();
+        } else {
+            console.log('Using direct localStorage fallback');
+            // Fallback to direct localStorage access
+            visitedIds = JSON.parse(localStorage.getItem('spscon_visited') || '[]');
+        }
+        
+        console.log('Visited IDs:', visitedIds);
+        
+        if (visitedIds.length === 0) {
+            console.log('No visited posters found');
+            showToast('No visited posters to export', 'warning');
+            return;
+        }
+        
+        console.log('Fetching poster data for IDs:', visitedIds);
+        
+        // Fetch full poster data
+        fetch('/api/posters-by-ids', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ poster_ids: visitedIds })
+        })
+        .then(response => {
+            console.log('Fetch response:', response);
+            return response.json();
+        })
+        .then(data => {
+            console.log('Fetched poster data:', data);
+            if (data.length > 0) {
+                exportVisitedToCSV(data);
+            } else {
+                console.log('No data returned from API');
+                showToast('No visited posters found to export', 'warning');
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching visited posters:', error);
+            showToast('Error exporting visited posters: ' + error.message, 'error');
+        });
+        
+    } catch (error) {
+        console.error('Error in exportVisited:', error);
+        showToast('Error exporting visited posters: ' + error.message, 'error');
     }
+}
+
+function exportVisitedToCSV(posters) {
+    // Create CSV content
+    let csvContent = "Poster Number,Title,Author,Institution,Session,Category\n";
     
-    // Simple PDF export using browser print functionality
-    const printWindow = window.open('', '_blank');
-    
-    let html = `
-        <html>
-        <head>
-            <title>SPSCon 2025 - Visited Posters</title>
-            <style>
-                body { font-family: Arial, sans-serif; margin: 20px; }
-                h1 { color: #2c3e50; }
-                .poster { margin-bottom: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
-                .poster-number { font-weight: bold; color: #27ae60; }
-                .author { color: #7f8c8d; }
-                .institution { color: #95a5a6; font-size: 0.9em; }
-                .title { margin: 10px 0; }
-                .category { background: #ecf0f1; padding: 2px 8px; border-radius: 3px; font-size: 0.8em; }
-            </style>
-        </head>
-        <body>
-            <h1>SPSCon 2025 - Visited Posters</h1>
-            <p>Generated on: ${new Date().toLocaleDateString()}</p>
-    `;
-    
-    visited.forEach(poster => {
-        html += `
-            <div class="poster">
-                <div class="poster-number">Poster #${poster.poster_number || poster.id} - Session ${poster.session || 'N/A'}</div>
-                <div class="author">${poster.first_name || 'Unknown'} ${poster.last_name || 'Author'}</div>
-                <div class="institution">${poster.institution || 'Unknown Institution'}</div>
-                <div class="title">${poster.title || 'Title not available'}</div>
-                <div class="category">${poster.category || 'Research'}</div>
-            </div>
-        `;
+    posters.forEach(poster => {
+        const author = `${poster.first_name || ''} ${poster.last_name || ''}`.trim();
+        csvContent += `"${poster.poster_number || poster.id}","${poster.title || ''}","${author}","${poster.institution || ''}","${poster.session || ''}","${poster.category || ''}"\n`;
     });
     
-    html += '</body></html>';
+    // Create and download file
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `spscon-visited-${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
     
-    printWindow.document.write(html);
-    printWindow.document.close();
-    printWindow.print();
+    showToast(`Exported ${posters.length} visited posters to CSV`, 'success');
+}
+
+// Export all data function (fallback if not available globally)
+function exportAllData() {
+    console.log('exportAllData called (local version)');
+    
+    try {
+        // Try localStorageManager first
+        if (typeof localStorageManager !== 'undefined' && localStorageManager) {
+            console.log('Using localStorageManager');
+            localStorageManager.exportData();
+        } else {
+            console.log('Using direct localStorage fallback');
+            // Fallback to direct localStorage export
+            const favorites = JSON.parse(localStorage.getItem('spscon_favorites') || '[]');
+            const visited = JSON.parse(localStorage.getItem('spscon_visited') || '[]');
+            const preferences = JSON.parse(localStorage.getItem('spscon_preferences') || '{}');
+            const searchHistory = JSON.parse(localStorage.getItem('spscon_search_history') || '[]');
+            
+            console.log('Favorites:', favorites);
+            console.log('Visited:', visited);
+            console.log('Preferences:', preferences);
+            console.log('Search History:', searchHistory);
+            
+            const data = {
+                favorites: favorites,
+                visited: visited,
+                preferences: preferences,
+                searchHistory: searchHistory,
+                exportDate: new Date().toISOString(),
+                version: '1.0'
+            };
+            
+            console.log('Exporting data:', data);
+            
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `spscon-data-${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            showToast('Data exported successfully!', 'success');
+        }
+    } catch (error) {
+        console.error('Export error:', error);
+        showToast('Error exporting data: ' + error.message, 'error');
+    }
 }
 </script>
 {% endblock %}

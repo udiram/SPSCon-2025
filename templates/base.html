@@ -337,7 +337,7 @@
                                 <i class="bi bi-person-plus"></i> Register
                             </a></li>
                             <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="#" onclick="localStorageManager.exportData()">
+                            <li><a class="dropdown-item" href="#" onclick="exportAllData()">
                                 <i class="bi bi-download"></i> Export Data
                             </a></li>
                             <li><a class="dropdown-item" href="#" onclick="localStorageManager.clearAllData()">
@@ -444,15 +444,98 @@
         
         function createToast(message, type) {
             const toast = document.createElement('div');
-            toast.className = `toast align-items-center text-white bg-${type} border-0`;
+            // Map type to proper Bootstrap classes
+            let bgClass, textClass;
+            switch(type) {
+                case 'success':
+                    bgClass = 'bg-success';
+                    textClass = 'text-white';
+                    break;
+                case 'error':
+                case 'danger':
+                    bgClass = 'bg-danger';
+                    textClass = 'text-white';
+                    break;
+                case 'warning':
+                    bgClass = 'bg-warning';
+                    textClass = 'text-dark';
+                    break;
+                case 'info':
+                default:
+                    bgClass = 'bg-info';
+                    textClass = 'text-white';
+                    break;
+            }
+            
+            toast.className = `toast align-items-center ${textClass} ${bgClass} border-0`;
             toast.setAttribute('role', 'alert');
             toast.innerHTML = `
                 <div class="d-flex">
                     <div class="toast-body">${message}</div>
-                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                    <button type="button" class="btn-close ${textClass === 'text-white' ? 'btn-close-white' : ''} me-2 m-auto" data-bs-dismiss="toast"></button>
                 </div>
             `;
             return toast;
+        }
+    </script>
+    
+    <!-- Initialize Local Storage Manager -->
+    <script>
+        // Initialize localStorageManager globally
+        let localStorageManager;
+        document.addEventListener('DOMContentLoaded', function() {
+            localStorageManager = new LocalStorageManager();
+        });
+        
+        // Export all data function with fallback
+        function exportAllData() {
+            console.log('exportAllData called');
+            
+            try {
+                // Try localStorageManager first
+                if (typeof localStorageManager !== 'undefined' && localStorageManager) {
+                    console.log('Using localStorageManager');
+                    localStorageManager.exportData();
+                } else {
+                    console.log('Using direct localStorage fallback');
+                    // Fallback to direct localStorage export
+                    const favorites = JSON.parse(localStorage.getItem('spscon_favorites') || '[]');
+                    const visited = JSON.parse(localStorage.getItem('spscon_visited') || '[]');
+                    const preferences = JSON.parse(localStorage.getItem('spscon_preferences') || '{}');
+                    const searchHistory = JSON.parse(localStorage.getItem('spscon_search_history') || '[]');
+                    
+                    console.log('Favorites:', favorites);
+                    console.log('Visited:', visited);
+                    console.log('Preferences:', preferences);
+                    console.log('Search History:', searchHistory);
+                    
+                    const data = {
+                        favorites: favorites,
+                        visited: visited,
+                        preferences: preferences,
+                        searchHistory: searchHistory,
+                        exportDate: new Date().toISOString(),
+                        version: '1.0'
+                    };
+                    
+                    console.log('Exporting data:', data);
+                    
+                    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `spscon-data-${new Date().toISOString().split('T')[0]}.json`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    
+                    showToast('Data exported successfully!', 'success');
+                }
+            } catch (error) {
+                console.error('Export error:', error);
+                showToast('Error exporting data: ' + error.message, 'error');
+            }
         }
     </script>
     

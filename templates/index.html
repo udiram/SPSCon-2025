@@ -164,43 +164,6 @@
     </div>
 </div>
 
-<!-- Quick Actions -->
-<div class="row mt-4">
-    <div class="col-md-3">
-        <a href="{{ url_for('search') }}" class="btn btn-outline-primary w-100">
-            <i class="bi bi-search"></i><br>Search Posters
-        </a>
-    </div>
-    <div class="col-md-3">
-        <a href="{{ url_for('favorites') }}" class="btn btn-outline-success w-100 local-storage-indicator">
-            <i class="bi bi-heart"></i><br>My Favorites
-            <span class="badge bg-danger favorites-count ms-1">0</span>
-        </a>
-    </div>
-    {% if current_user.is_authenticated %}
-    <div class="col-md-3">
-        <a href="{{ url_for('analytics') }}" class="btn btn-outline-info w-100">
-            <i class="bi bi-bar-chart"></i><br>Analytics
-        </a>
-    </div>
-    <div class="col-md-3">
-        <a href="{{ url_for('my_posters') }}" class="btn btn-outline-warning w-100">
-            <i class="bi bi-person-badge"></i><br>My Posters
-        </a>
-    </div>
-    {% else %}
-    <div class="col-md-3">
-        <button class="btn btn-outline-info w-100" onclick="showLocalStorageInfo()">
-            <i class="bi bi-info-circle"></i><br>Guest Mode Info
-        </button>
-    </div>
-    <div class="col-md-3">
-        <a href="{{ url_for('login') }}" class="btn btn-outline-warning w-100">
-            <i class="bi bi-box-arrow-in-right"></i><br>Login for More
-        </a>
-    </div>
-    {% endif %}
-</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -321,18 +284,6 @@ institutionG.append("g")
     .attr("transform", `translate(0, ${institutionHeight})`)
     .call(d3.axisBottom(institutionX));
 
-// Guest Mode Info Modal
-function showLocalStorageInfo() {
-    const storageInfo = localStorageManager.getStorageInfo();
-    const modal = new bootstrap.Modal(document.getElementById('guestModeModal'));
-    document.getElementById('storageInfo').innerHTML = `
-        <p><strong>Storage Used:</strong> ${storageInfo.totalSizeKB} KB</p>
-        <p><strong>Items Stored:</strong> ${storageInfo.items}</p>
-        <p><strong>Last Visit:</strong> ${storageInfo.lastVisit ? new Date(storageInfo.lastVisit).toLocaleString() : 'Never'}</p>
-    `;
-    modal.show();
-}
-
 // Initialize search suggestions
 document.addEventListener('DOMContentLoaded', function() {
     const searchInput = document.getElementById('searchInput');
@@ -362,36 +313,5 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
-<!-- Guest Mode Info Modal -->
-<div class="modal fade" id="guestModeModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title"><i class="bi bi-info-circle"></i> Guest Mode Information</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <div class="alert alert-info">
-                    <h6><i class="bi bi-lightbulb"></i> You're using Guest Mode!</h6>
-                    <p class="mb-0">All your favorites and visited posters are saved locally in your browser. This means:</p>
-                </div>
-                <ul class="list-unstyled">
-                    <li><i class="bi bi-check-circle text-success"></i> Your data persists between sessions</li>
-                    <li><i class="bi bi-check-circle text-success"></i> No account required</li>
-                    <li><i class="bi bi-check-circle text-success"></i> Works offline</li>
-                    <li><i class="bi bi-exclamation-triangle text-warning"></i> Data is tied to this browser/device</li>
-                </ul>
-                <div id="storageInfo"></div>
-                <div class="mt-3">
-                    <h6>Want more features?</h6>
-                    <p class="small text-muted">Login to sync your data across devices and access analytics.</p>
-                    <a href="{{ url_for('login') }}" class="btn btn-primary btn-sm">
-                        <i class="bi bi-box-arrow-in-right"></i> Login
-                    </a>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
 {% endblock %}
 

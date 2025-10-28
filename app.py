@@ -377,6 +377,68 @@ def create_app():
         
         return jsonify(posters_data)
 
+    @app.route('/api/export/favorites')
+    def export_favorites():
+        """Export favorites for anonymous users"""
+        try:
+            poster_ids = request.args.get('ids', '')
+            if not poster_ids:
+                return jsonify({'error': 'No poster IDs provided'}), 400
+            
+            # Parse comma-separated IDs
+            try:
+                poster_ids = [int(pid.strip()) for pid in poster_ids.split(',')]
+            except ValueError:
+                return jsonify({'error': 'Invalid poster IDs'}), 400
+            
+            # Get posters
+            posters = Poster.query.filter(Poster.id.in_(poster_ids)).all()
+            
+            # Create CSV content
+            csv_content = "Poster Number,Title,Author,Institution,Session,Category\n"
+            for poster in posters:
+                csv_content += f'"{poster.poster_number}","{poster.title}","{poster.first_name} {poster.last_name}","{poster.institution}","{poster.session}","{poster.category}"\n'
+            
+            # Return CSV response
+            response = make_response(csv_content)
+            response.headers['Content-Type'] = 'text/csv'
+            response.headers['Content-Disposition'] = f'attachment; filename="spscon-favorites-{datetime.now().strftime("%Y%m%d")}.csv"'
+            return response
+            
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/export/visited')
+    def export_visited():
+        """Export visited posters for anonymous users"""
+        try:
+            poster_ids = request.args.get('ids', '')
+            if not poster_ids:
+                return jsonify({'error': 'No poster IDs provided'}), 400
+            
+            # Parse comma-separated IDs
+            try:
+                poster_ids = [int(pid.strip()) for pid in poster_ids.split(',')]
+            except ValueError:
+                return jsonify({'error': 'Invalid poster IDs'}), 400
+            
+            # Get posters
+            posters = Poster.query.filter(Poster.id.in_(poster_ids)).all()
+            
+            # Create CSV content
+            csv_content = "Poster Number,Title,Author,Institution,Session,Category\n"
+            for poster in posters:
+                csv_content += f'"{poster.poster_number}","{poster.title}","{poster.first_name} {poster.last_name}","{poster.institution}","{poster.session}","{poster.category}"\n'
+            
+            # Return CSV response
+            response = make_response(csv_content)
+            response.headers['Content-Type'] = 'text/csv'
+            response.headers['Content-Disposition'] = f'attachment; filename="spscon-visited-{datetime.now().strftime("%Y%m%d")}.csv"'
+            return response
+            
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
     @app.route('/api/presenter-status/<int:poster_id>', methods=['POST'])
     @login_required
     def toggle_presenter_status(poster_id):

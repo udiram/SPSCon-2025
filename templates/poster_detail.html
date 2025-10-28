@@ -243,14 +243,6 @@ function updateNavbarCounts() {
     }
 }
 
-// Initialize button states and navbar counts on page load
-document.addEventListener('DOMContentLoaded', function() {
-    const posterId = {{ poster.id }};
-    updateFavoriteButton(posterId);
-    updateVisitedButton(posterId);
-    updateNavbarCounts(); // Initialize navbar counts
-});
-
 function togglePresenterStatus(posterId) {
     const btn = document.getElementById(`statusBtn${posterId}`);
     const indicator = document.getElementById(`statusIndicator${posterId}`);
@@ -291,6 +283,14 @@ function togglePresenterStatus(posterId) {
         showToast('Error updating status', 'danger');
     });
 }
+
+// Initialize button states and navbar counts on page load
+document.addEventListener('DOMContentLoaded', function() {
+    const posterId = {{ poster.id }};
+    updateFavoriteButton(posterId);
+    updateVisitedButton(posterId);
+    updateNavbarCounts(); // Initialize navbar counts
+});
 
 // Poll for status updates every 30 seconds
 setInterval(() => {

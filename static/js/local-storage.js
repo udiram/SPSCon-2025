@@ -415,10 +415,37 @@ class LocalStorageManager {
             lastVisit: this.getLastVisit()
         };
     }
+    
+    // User preferences methods
+    getUserPreferences() {
+        try {
+            return JSON.parse(localStorage.getItem(this.storageKeys.preferences) || '{}');
+        } catch (e) {
+            return {};
+        }
+    }
+    
+    setUserPreferences(preferences) {
+        try {
+            localStorage.setItem(this.storageKeys.preferences, JSON.stringify(preferences));
+            return true;
+        } catch (e) {
+            console.error('Error saving user preferences:', e);
+            return false;
+        }
+    }
+    
+    saveUserPreferences() {
+        // Auto-save current preferences
+        const currentPrefs = this.getUserPreferences();
+        if (Object.keys(currentPrefs).length > 0) {
+            this.setUserPreferences(currentPrefs);
+        }
+    }
 }
 
 // Initialize the local storage manager
-const localStorageManager = new LocalStorageManager();
+// Note: localStorageManager is initialized in base.html to avoid conflicts
 
 // Enhanced API functions that work with both logged-in and anonymous users
 async function toggleFavoriteAPI(posterId) {
