@@ -50,16 +50,20 @@ def create_app():
             category = poster.get_category_name()
             categories[category] = categories.get(category, 0) + 1
         
-        # Get institution distribution
+        # Get institution distribution (top 10 for chart)
         institutions = db.session.query(Poster.institution, db.func.count(Poster.id)).group_by(Poster.institution).order_by(db.func.count(Poster.id).desc()).limit(10).all()
         institutions = [(row[0], row[1]) for row in institutions]
+        
+        # Get total unique institutions count
+        total_institutions = db.session.query(Poster.institution).distinct().count()
         
         return render_template('index.html', 
                              total_posters=total_posters,
                              total_users=total_users,
                              total_visits=total_visits,
                              categories=categories,
-                             institutions=institutions)
+                             institutions=institutions,
+                             total_institutions=total_institutions)
     
     @app.route('/login', methods=['GET', 'POST'])
     def login():

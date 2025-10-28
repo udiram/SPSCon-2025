@@ -1,10 +1,37 @@
+# Core Flask dependencies
 Flask==3.1.2
 Flask-SQLAlchemy==3.1.1
 Flask-Login==0.6.3
+Flask-Migrate==4.0.5
+Werkzeug==3.1.3
+
+# Database drivers
+psycopg2-binary==2.9.9
+SQLAlchemy==2.0.44
+
+# Data processing
 pandas==2.3.3
 openpyxl==3.1.5
+
+# Image processing
 qrcode==8.2
 Pillow==12.0.0
-Werkzeug==3.1.3
+
+# Environment and configuration
 python-dotenv==1.2.1
-psycopg2-binary==2.9.9
+
+# Production server
+gunicorn==21.2.0
+
+# Development and testing (optional)
+pytest==8.3.4
+pytest-cov==6.0.0
+
+# Security
+cryptography==44.0.0
+
+# Utilities
+click==8.3.0
+itsdangerous==2.2.0
+Jinja2==3.1.6
+MarkupSafe==3.0.3

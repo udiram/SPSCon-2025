@@ -1,0 +1,311 @@
+#!/usr/bin/env python3
+"""
+Railway Deployment Script for SPSCon 2025
+Handles database migration and data preservation during deployment
+Based on TradeGrade deployment structure
+"""
+
+import os
+import sys
+import json
+from datetime import datetime
+from models import db, User, Poster, Favorite, Visit, PresenterStatus
+from app import create_app
+
+def check_environment():
+    """Check deployment environment and configuration"""
+    print("🔍 Checking deployment environment...")
+    
+    # Check if we're in Railway
+    is_railway = os.getenv('RAILWAY_ENVIRONMENT') is not None
+    print(f"   Railway Environment: {'Yes' if is_railway else 'No'}")
+    
+    # Check database URL
+    db_url = os.getenv('DATABASE_URL')
+    if db_url:
+        print(f"   Database: {'PostgreSQL' if 'postgresql' in db_url else 'SQLite'}")
+    else:
+        print("   Database: SQLite (fallback)")
+    
+    # Check secret key
+    secret_key = os.getenv('SECRET_KEY')
+    if secret_key and secret_key != 'dev-secret-key-change-in-production':
+        print("   Secret Key: ✅ Configured")
+    else:
+        print("   Secret Key: ⚠️  Using default")
+    
+    return is_railway
+
+def backup_data():
+    """Create a backup of existing data before migration"""
+    app = create_app()
+    
+    with app.app_context():
+        try:
+            backup = {
+                'users': [],
+                'posters': [],
+                'favorites': [],
+                'visits': [],
+                'presenter_statuses': []
+            }
+            
+            # Backup users
+            for user in User.query.all():
+                backup['users'].append({
+                    'id': user.id,
+                    'username': user.username,
+                    'email': user.email,
+                    'first_name': user.first_name,
+                    'last_name': user.last_name,
+                    'password_hash': user.password_hash,
+                    'created_at': user.created_at.isoformat() if user.created_at else None
+                })
+            
+            # Backup posters
+            for poster in Poster.query.all():
+                backup['posters'].append({
+                    'id': poster.id,
+                    'poster_number': poster.poster_number,
+                    'session': poster.session,
+                    'first_name': poster.first_name,
+                    'last_name': poster.last_name,
+                    'institution': poster.institution,
+                    'title': poster.title,
+                    'category': poster.category,
+                    'tags': poster.tags,
+                    'qr_code_data': poster.qr_code_data,
+                    'presenter_id': poster.presenter_id
+                })
+            
+            # Backup favorites
+            for fav in Favorite.query.all():
+                backup['favorites'].append({
+                    'id': fav.id,
+                    'user_id': fav.user_id,
+                    'poster_id': fav.poster_id,
+                    'created_at': fav.created_at.isoformat() if fav.created_at else None
+                })
+            
+            # Backup visits
+            for visit in Visit.query.all():
+                backup['visits'].append({
+                    'id': visit.id,
+                    'user_id': visit.user_id,
+                    'poster_id': visit.poster_id,
+                    'visited_at': visit.visited_at.isoformat() if visit.visited_at else None
+                })
+            
+            # Backup presenter statuses
+            for status in PresenterStatus.query.all():
+                backup['presenter_statuses'].append({
+                    'id': status.id,
+                    'user_id': status.user_id,
+                    'poster_id': status.poster_id,
+                    'is_available': status.is_available,
+                    'last_updated': status.last_updated.isoformat() if status.last_updated else None
+                })
+            
+            # Save backup to file
+            with open('data_backup.json', 'w') as f:
+                json.dump(backup, f, indent=2)
+            
+            print(f"Backup created: {len(backup['users'])} users, {len(backup['posters'])} posters")
+            return True
+            
+        except Exception as e:
+            print(f"Error creating backup: {e}")
+            return False
+
+def restore_data():
+    """Restore data from backup after migration"""
+    app = create_app()
+    
+    if not os.path.exists('data_backup.json'):
+        print("No backup file found, skipping restore")
+        return True
+    
+    with app.app_context():
+        try:
+            with open('data_backup.json', 'r') as f:
+                backup = json.load(f)
+            
+            # Clear existing data
+            db.session.query(PresenterStatus).delete()
+            db.session.query(Visit).delete()
+            db.session.query(Favorite).delete()
+            db.session.query(Poster).delete()
+            db.session.query(User).delete()
+            db.session.commit()
+            
+            # Restore users
+            for user_data in backup['users']:
+                user = User(
+                    username=user_data['username'],
+                    email=user_data['email'],
+                    first_name=user_data['first_name'],
+                    last_name=user_data['last_name'],
+                    password_hash=user_data['password_hash']
+                )
+                user.id = user_data['id']  # Preserve original ID
+                if user_data.get('created_at'):
+                    from datetime import datetime
+                    user.created_at = datetime.fromisoformat(user_data['created_at'])
+                db.session.add(user)
+            
+            db.session.commit()
+            
+            # Restore posters
+            for poster_data in backup['posters']:
+                poster = Poster(
+                    poster_number=poster_data['poster_number'],
+                    session=poster_data['session'],
+                    first_name=poster_data['first_name'],
+                    last_name=poster_data['last_name'],
+                    institution=poster_data['institution'],
+                    title=poster_data['title'],
+                    category=poster_data['category'],
+                    tags=poster_data['tags'],
+                    qr_code_data=poster_data['qr_code_data'],
+                    presenter_id=poster_data['presenter_id']
+                )
+                poster.id = poster_data['id']  # Preserve original ID
+                db.session.add(poster)
+            
+            db.session.commit()
+            
+            # Restore favorites
+            for fav_data in backup['favorites']:
+                favorite = Favorite(
+                    user_id=fav_data['user_id'],
+                    poster_id=fav_data['poster_id']
+                )
+                if fav_data['created_at']:
+                    from datetime import datetime
+                    favorite.created_at = datetime.fromisoformat(fav_data['created_at'])
+                db.session.add(favorite)
+            
+            # Restore visits
+            for visit_data in backup['visits']:
+                visit = Visit(
+                    user_id=visit_data['user_id'],
+                    poster_id=visit_data['poster_id']
+                )
+                if visit_data['visited_at']:
+                    from datetime import datetime
+                    visit.visited_at = datetime.fromisoformat(visit_data['visited_at'])
+                db.session.add(visit)
+            
+            # Restore presenter statuses
+            for status_data in backup['presenter_statuses']:
+                status = PresenterStatus(
+                    user_id=status_data['user_id'],
+                    poster_id=status_data['poster_id'],
+                    is_available=status_data['is_available']
+                )
+                if status_data.get('last_updated'):
+                    from datetime import datetime
+                    status.last_updated = datetime.fromisoformat(status_data['last_updated'])
+                db.session.add(status)
+            
+            db.session.commit()
+            
+            print(f"Data restored: {len(backup['users'])} users, {len(backup['posters'])} posters")
+            
+            # Clean up backup file
+            os.remove('data_backup.json')
+            return True
+            
+        except Exception as e:
+            print(f"Error restoring data: {e}")
+            return False
+
+def migrate_database():
+    """Safe database migration that preserves data"""
+    app = create_app()
+    
+    with app.app_context():
+        try:
+            print("🗄️  Starting database migration...")
+            
+            # Check if database exists and has data
+            inspector = db.inspect(db.engine)
+            existing_tables = inspector.get_table_names()
+            
+            has_data = False
+            if 'poster' in existing_tables:
+                try:
+                    poster_count = Poster.query.count()
+                    has_data = poster_count > 0
+                    print(f"   Found {poster_count} existing posters")
+                except Exception as e:
+                    print(f"   Could not count posters: {e}")
+                    has_data = False
+            
+            if has_data:
+                print("📦 Database has existing data, creating backup...")
+                if not backup_data():
+                    print("❌ Backup failed, aborting migration")
+                    return False
+            
+            # Create/update tables
+            print("🔨 Creating/updating database tables...")
+            db.create_all()
+            
+            # Verify tables were created
+            inspector = db.inspect(db.engine)
+            current_tables = inspector.get_table_names()
+            expected_tables = {'user', 'poster', 'favorite', 'visit', 'presenter_status'}
+            
+            missing_tables = expected_tables - set(current_tables)
+            if missing_tables:
+                print(f"❌ Missing tables: {missing_tables}")
+                return False
+            
+            print(f"✅ All tables created: {current_tables}")
+            
+            if has_data:
+                print("📥 Restoring data from backup...")
+                if not restore_data():
+                    print("❌ Restore failed, but tables are created")
+                    return False
+            
+            print("✅ Database migration completed successfully")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Error during migration: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+
+def check_deployment_environment():
+    """Check if we're in Railway deployment environment"""
+    return os.getenv('RAILWAY_ENVIRONMENT') is not None
+
+def main():
+    """Main deployment function"""
+    print("🚀 SPSCon 2025 Railway Deployment Script")
+    print("=" * 50)
+    
+    # Check environment
+    is_railway = check_environment()
+    
+    print(f"\n🌍 Environment: {'Railway Production' if is_railway else 'Local Development'}")
+    
+    # Run migration
+    print("\n📊 Starting database migration...")
+    success = migrate_database()
+    
+    if success:
+        print("\n🎉 Deployment preparation completed successfully!")
+        print("✅ Ready to start Flask application")
+        return True
+    else:
+        print("\n💥 Deployment preparation failed!")
+        print("❌ Check logs above for details")
+        return False
+
+if __name__ == "__main__":
+    success = main()
+    sys.exit(0 if success else 1)

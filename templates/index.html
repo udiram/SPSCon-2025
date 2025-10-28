@@ -52,7 +52,7 @@
     <div class="col-md-4">
         <a href="{{ url_for('institutions_list') }}" class="text-decoration-none d-block">
             <div class="stat-card clickable">
-                <div class="stat-number">{{ institutions|length }}</div>
+                <div class="stat-number">{{ total_institutions }}</div>
                 <div>Institutions</div>
             </div>
         </a>
@@ -209,21 +209,24 @@
 const categoryData = {{ categories | tojson }};
 const categoryColors = ['#3498db', '#e74c3c', '#2ecc71', '#f39c12'];
 
+// Create a larger SVG to accommodate both chart and legend
 const categorySvg = d3.select("#category-chart")
     .append("svg")
-    .attr("width", 400)
-    .attr("height", 300);
+    .attr("width", 500)
+    .attr("height", 350);
 
 const categoryPie = d3.pie()
     .value(d => d[1])
     .sort(null);
 
+// Make the chart smaller and position it to the right
 const categoryArc = d3.arc()
-    .innerRadius(60)
-    .outerRadius(120);
+    .innerRadius(50)
+    .outerRadius(100);
 
+// Position the chart to the right side
 const categoryG = categorySvg.append("g")
-    .attr("transform", "translate(200, 150)");
+    .attr("transform", "translate(300, 175)");
 
 const categoryArcs = categoryG.selectAll(".arc")
     .data(categoryPie(Object.entries(categoryData)))
@@ -236,32 +239,36 @@ categoryArcs.append("path")
     .attr("stroke", "#fff")
     .attr("stroke-width", 2);
 
+// Only show text labels for larger segments (Research)
 categoryArcs.append("text")
     .attr("transform", d => `translate(${categoryArc.centroid(d)})`)
     .attr("text-anchor", "middle")
-    .attr("font-size", "12px")
+    .attr("font-size", "14px")
+    .attr("font-weight", "bold")
     .attr("fill", "white")
-    .text(d => d.data[0]);
+    .text(d => d.data[1] > 50 ? d.data[0] : ""); // Only show for segments with >50 items
 
-// Legend
+// Legend positioned to the left with more space
 const legend = categorySvg.append("g")
-    .attr("transform", "translate(20, 20)");
+    .attr("transform", "translate(20, 30)");
 
 const legendItems = legend.selectAll(".legend-item")
     .data(Object.entries(categoryData))
     .enter().append("g")
     .attr("class", "legend-item")
-    .attr("transform", (d, i) => `translate(0, ${i * 25})`);
+    .attr("transform", (d, i) => `translate(0, ${i * 30})`);
 
 legendItems.append("rect")
-    .attr("width", 15)
-    .attr("height", 15)
-    .attr("fill", (d, i) => categoryColors[i % categoryColors.length]);
+    .attr("width", 18)
+    .attr("height", 18)
+    .attr("fill", (d, i) => categoryColors[i % categoryColors.length])
+    .attr("rx", 3);
 
 legendItems.append("text")
-    .attr("x", 20)
-    .attr("y", 12)
-    .attr("font-size", "11px")
+    .attr("x", 25)
+    .attr("y", 13)
+    .attr("font-size", "12px")
+    .attr("font-weight", "500")
     .text(d => `${d[0]} (${d[1]})`);
 
 // Institution Chart

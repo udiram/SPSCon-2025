@@ -57,7 +57,9 @@
                 <div class="mb-3">
                     <strong>Tags:</strong>
                     {% for tag in poster.tags|from_json %}
-                    <span class="badge bg-light text-dark me-1">{{ tag }}</span>
+                    <a href="{{ url_for('search', q=tag) }}" class="badge bg-light text-dark me-1 text-decoration-none tag-link" title="Search for other posters with this tag">
+                        {{ tag }}
+                    </a>
                     {% endfor %}
                 </div>
                 {% endif %}

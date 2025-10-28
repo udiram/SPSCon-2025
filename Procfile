@@ -1,2 +1,2 @@
-web: python app.py
+web: ./pre_deploy.sh && python app.py
 
