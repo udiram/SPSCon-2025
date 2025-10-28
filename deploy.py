@@ -24,7 +24,12 @@ def check_environment():
     # Check database URL
     db_url = os.getenv('DATABASE_URL')
     if db_url:
-        print(f"   Database: {'PostgreSQL' if 'postgresql' in db_url else 'SQLite'}")
+        if 'mysql' in db_url:
+            print("   Database: MySQL")
+        elif 'postgresql' in db_url:
+            print("   Database: PostgreSQL")
+        else:
+            print("   Database: Other")
     else:
         print("   Database: SQLite (fallback)")
     
