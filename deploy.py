@@ -11,6 +11,7 @@ import json
 from datetime import datetime
 from models import db, User, Poster, Favorite, Visit, PresenterStatus
 from app import create_app
+from seed_data import import_excel_data, check_data_integrity
 
 def check_environment():
     """Check deployment environment and configuration"""
@@ -35,6 +36,50 @@ def check_environment():
         print("   Secret Key: ⚠️  Using default")
     
     return is_railway
+
+def seed_database():
+    """Seed the database with poster data if it's empty"""
+    app = create_app()
+    
+    with app.app_context():
+        try:
+            # Check if database already has data
+            poster_count = Poster.query.count()
+            
+            if poster_count > 0:
+                print(f"📊 Database already has {poster_count} posters, skipping seeding")
+                return True
+            
+            print("🌱 Database is empty, starting data seeding...")
+            
+            # Check if Excel file exists
+            excel_file = "2025 SPSCon Poster Assignments_Student View.xlsx"
+            if not os.path.exists(excel_file):
+                print(f"⚠️  Excel file '{excel_file}' not found")
+                print("   Data seeding skipped - you can import data later via admin panel")
+                return True
+            
+            # Import data from Excel
+            print(f"📥 Importing data from {excel_file}...")
+            imported_count = import_excel_data(excel_file)
+            
+            if imported_count > 0:
+                print(f"✅ Successfully imported {imported_count} posters")
+                
+                # Verify data integrity
+                print("🔍 Verifying data integrity...")
+                check_data_integrity()
+                
+                return True
+            else:
+                print("❌ No data imported from Excel file")
+                return False
+                
+        except Exception as e:
+            print(f"❌ Error during database seeding: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
 
 def backup_data():
     """Create a backup of existing data before migration"""
@@ -269,6 +314,12 @@ def migrate_database():
                 if not restore_data():
                     print("❌ Restore failed, but tables are created")
                     return False
+            else:
+                # No existing data, try to seed the database
+                print("🌱 No existing data found, attempting to seed database...")
+                if not seed_database():
+                    print("⚠️  Database seeding failed, but tables are created")
+                    print("   You can import data later via admin panel")
             
             print("✅ Database migration completed successfully")
             return True
