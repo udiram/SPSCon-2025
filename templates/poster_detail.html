@@ -172,14 +172,19 @@ function markVisitedAPI(posterId) {
     console.log('markVisitedAPI called for poster:', posterId);
     
     const visited = JSON.parse(localStorage.getItem('spscon_visited') || '[]');
-    
-    if (!visited.includes(posterId)) {
+    const idx = visited.indexOf(posterId);
+    if (idx === -1) {
+        // Mark visited
         visited.push(posterId);
         localStorage.setItem('spscon_visited', JSON.stringify(visited));
         updateVisitedButton(posterId);
         showToast('Marked as visited!', 'success');
     } else {
-        showToast('Already marked as visited', 'info');
+        // Unmark visited (toggle off)
+        visited.splice(idx, 1);
+        localStorage.setItem('spscon_visited', JSON.stringify(visited));
+        updateVisitedButton(posterId);
+        showToast('Unmarked as visited', 'info');
     }
 }
 

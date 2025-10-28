@@ -36,28 +36,20 @@
 </div>
 
 <!-- Statistics Cards -->
-<div class="row mb-4 g-4">
-    <div class="col-md-3">
+<div class="row mb-4 g-3">
+    <div class="col-md-4">
         <div class="stat-card">
             <div class="stat-number">{{ total_posters }}</div>
             <div>Total Posters</div>
         </div>
     </div>
-    {% if current_user.is_authenticated %}
-    <div class="col-md-3">
-        <div class="stat-card">
-            <div class="stat-number">{{ total_users }}</div>
-            <div>Registered Users</div>
-        </div>
-    </div>
-    {% endif %}
-    <div class="col-md-3">
+    <div class="col-md-4">
         <div class="stat-card">
             <div class="stat-number">{{ total_visits }}</div>
             <div>Total Visits</div>
         </div>
     </div>
-    <div class="col-md-3">
+    <div class="col-md-4">
         <a href="{{ url_for('institutions_list') }}" class="text-decoration-none d-block">
             <div class="stat-card clickable">
                 <div class="stat-number">{{ institutions|length }}</div>
@@ -127,10 +119,32 @@
     <div class="col-md-6 mb-4">
         <div class="card">
             <div class="card-header">
-                <h5><i class="bi bi-bar-chart"></i> Session Distribution</h5>
+                <h5><i class="bi bi-calendar-week"></i> Conference Schedule</h5>
             </div>
             <div class="card-body">
-                <div id="session-chart"></div>
+                <div class="row text-center">
+                    <div class="col-6">
+                        <div class="schedule-item">
+                            <h4 class="text-primary">Session I</h4>
+                            <p class="mb-1"><strong>Friday, Oct 31</strong></p>
+                            <p class="mb-1">10:30 AM – 12:00 PM</p>
+                            <div class="badge bg-primary fs-6">{{ categories.get('Supporting Our Phase Shifts', 0) + categories.get('Careers and Corporate Internships', 0) }} Posters</div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="schedule-item">
+                            <h4 class="text-success">Session II</h4>
+                            <p class="mb-1"><strong>Saturday, Nov 1</strong></p>
+                            <p class="mb-1">11:30 AM – 1:00 PM</p>
+                            <div class="badge bg-success fs-6">{{ categories.get('Sigma Pi Sigma Chapter Activities', 0) + categories.get('Research', 0) }} Posters</div>
+                        </div>
+                    </div>
+                </div>
+                <hr>
+                <div class="text-center">
+                    <p class="mb-1"><strong>Setup:</strong> Thursday, Oct 30, 6:15 PM – 7:00 PM</p>
+                    <p class="mb-0"><strong>Location:</strong> Exhibit Hall</p>
+                </div>
             </div>
         </div>
     </div>
@@ -237,7 +251,7 @@ const legendItems = legend.selectAll(".legend-item")
     .data(Object.entries(categoryData))
     .enter().append("g")
     .attr("class", "legend-item")
-    .attr("transform", (d, i) => `translate(0, ${i * 20})`);
+    .attr("transform", (d, i) => `translate(0, ${i * 25})`);
 
 legendItems.append("rect")
     .attr("width", 15)
@@ -247,52 +261,8 @@ legendItems.append("rect")
 legendItems.append("text")
     .attr("x", 20)
     .attr("y", 12)
-    .attr("font-size", "12px")
+    .attr("font-size", "11px")
     .text(d => `${d[0]} (${d[1]})`);
-
-// Session Distribution Bar Chart
-const sessionData = [
-    {session: "Session I", count: {{ categories.get('Supporting Our Phase Shifts', 0) + categories.get('Careers and Corporate Internships', 0) }}},
-    {session: "Session II", count: {{ categories.get('Sigma Pi Sigma Chapter Activities', 0) + categories.get('Research', 0) }}}
-];
-
-const sessionSvg = d3.select("#session-chart")
-    .append("svg")
-    .attr("width", 400)
-    .attr("height", 300);
-
-const sessionX = d3.scaleBand()
-    .domain(sessionData.map(d => d.session))
-    .range([50, 350])
-    .padding(0.1);
-
-const sessionY = d3.scaleLinear()
-    .domain([0, d3.max(sessionData, d => d.count)])
-    .range([250, 50]);
-
-sessionSvg.selectAll(".bar")
-    .data(sessionData)
-    .enter().append("rect")
-    .attr("class", "bar")
-    .attr("x", d => sessionX(d.session))
-    .attr("y", d => sessionY(d.count))
-    .attr("width", sessionX.bandwidth())
-    .attr("height", d => 250 - sessionY(d.count))
-    .attr("fill", "#3498db");
-
-sessionSvg.selectAll(".bar-label")
-    .data(sessionData)
-    .enter().append("text")
-    .attr("class", "bar-label")
-    .attr("x", d => sessionX(d.session) + sessionX.bandwidth() / 2)
-    .attr("y", d => sessionY(d.count) - 5)
-    .attr("text-anchor", "middle")
-    .attr("font-size", "14px")
-    .text(d => d.count);
-
-sessionSvg.append("g")
-    .attr("transform", "translate(0, 250)")
-    .call(d3.axisBottom(sessionX));
 
 // Institution Chart
 const institutionData = {{ institutions | tojson }};
