@@ -1,5 +1,6 @@
 import pandas as pd
 import json
+import os
 from models import db, Poster
 from utils.tag_generator import generate_tags_for_poster
 from utils.qr_generator import generate_qr_code
@@ -37,7 +38,13 @@ def import_excel_data(excel_file_path):
                 poster.tags = json.dumps(tags)
                 
                 # Generate QR code
-                qr_data = f"https://your-domain.com/poster/{poster.poster_number}"
+                # Use Railway domain for production, localhost for development
+                if os.getenv('RAILWAY_ENVIRONMENT'):
+                    base_url = "https://spscon2025.up.railway.app"
+                else:
+                    base_url = "http://localhost:5000"
+                
+                qr_data = f"{base_url}/poster/{poster.poster_number}"
                 poster.qr_code_data = generate_qr_code(qr_data)
                 
                 # Add to database

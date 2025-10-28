@@ -12,6 +12,7 @@ from datetime import datetime
 from models import db, User, Poster, Favorite, Visit, PresenterStatus
 from app import create_app
 from seed_data import import_excel_data, check_data_integrity
+from utils.qr_generator import generate_qr_code
 
 def check_environment():
     """Check deployment environment and configuration"""
@@ -41,6 +42,40 @@ def check_environment():
         print("   Secret Key: ⚠️  Using default")
     
     return is_railway
+
+def update_qr_codes():
+    """Update QR codes for all posters with correct domain"""
+    app = create_app()
+    
+    with app.app_context():
+        try:
+            # Get base URL based on environment
+            if os.getenv('RAILWAY_ENVIRONMENT'):
+                base_url = "https://spscon2025.up.railway.app"
+            else:
+                base_url = "http://localhost:5000"
+            
+            # Get all posters
+            posters = Poster.query.all()
+            print(f"🔄 Updating QR codes for {len(posters)} posters...")
+            
+            updated_count = 0
+            for poster in posters:
+                # Generate new QR code with correct URL
+                qr_data = f"{base_url}/poster/{poster.poster_number}"
+                poster.qr_code_data = generate_qr_code(qr_data)
+                updated_count += 1
+            
+            # Commit all changes
+            db.session.commit()
+            print(f"✅ Updated {updated_count} QR codes with base URL: {base_url}")
+            
+            return True
+            
+        except Exception as e:
+            print(f"❌ Error updating QR codes: {e}")
+            db.session.rollback()
+            return False
 
 def seed_database():
     """Seed the database with poster data if it's empty"""
@@ -325,6 +360,11 @@ def migrate_database():
                 if not seed_database():
                     print("⚠️  Database seeding failed, but tables are created")
                     print("   You can import data later via admin panel")
+            
+            # Update QR codes for all posters (new or existing)
+            print("🔄 Updating QR codes with correct domain...")
+            if not update_qr_codes():
+                print("⚠️  QR code update failed, but migration continues")
             
             print("✅ Database migration completed successfully")
             return True

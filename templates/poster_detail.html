@@ -168,6 +168,7 @@ function toggleFavoriteAPI(posterId) {
     
     localStorage.setItem('spscon_favorites', JSON.stringify(favorites));
     updateFavoriteButton(posterId);
+    updateNavbarCounts(); // Update navbar badge counts immediately
 }
 
 function markVisitedAPI(posterId) {
@@ -180,12 +181,14 @@ function markVisitedAPI(posterId) {
         visited.push(posterId);
         localStorage.setItem('spscon_visited', JSON.stringify(visited));
         updateVisitedButton(posterId);
+        updateNavbarCounts(); // Update navbar badge counts immediately
         showToast('Marked as visited!', 'success');
     } else {
         // Unmark visited (toggle off)
         visited.splice(idx, 1);
         localStorage.setItem('spscon_visited', JSON.stringify(visited));
         updateVisitedButton(posterId);
+        updateNavbarCounts(); // Update navbar badge counts immediately
         showToast('Unmarked as visited', 'info');
     }
 }
@@ -224,11 +227,28 @@ function updateVisitedButton(posterId) {
     }
 }
 
-// Initialize button states on page load
+function updateNavbarCounts() {
+    // Update favorites count
+    const favoritesCountSpan = document.querySelector('.favorites-count');
+    if (favoritesCountSpan) {
+        const favorites = JSON.parse(localStorage.getItem('spscon_favorites') || '[]');
+        favoritesCountSpan.textContent = favorites.length;
+    }
+    
+    // Update visited count
+    const visitedCountSpan = document.querySelector('.visited-count');
+    if (visitedCountSpan) {
+        const visited = JSON.parse(localStorage.getItem('spscon_visited') || '[]');
+        visitedCountSpan.textContent = visited.length;
+    }
+}
+
+// Initialize button states and navbar counts on page load
 document.addEventListener('DOMContentLoaded', function() {
     const posterId = {{ poster.id }};
     updateFavoriteButton(posterId);
     updateVisitedButton(posterId);
+    updateNavbarCounts(); // Initialize navbar counts
 });
 
 function togglePresenterStatus(posterId) {

@@ -231,6 +231,9 @@ class LocalStorageManager {
             btn.innerHTML = '<i class="bi bi-heart"></i> Add to Favorites';
             btn.classList.remove('favorited');
         }
+        
+        // Update navbar count
+        this.updateNavbarCounts();
     }
 
     updateVisitedButton(posterId) {
@@ -248,6 +251,25 @@ class LocalStorageManager {
             btn.innerHTML = '<i class="bi bi-check-circle"></i> Mark as Visited';
             btn.classList.remove('btn-success');
             btn.classList.add('btn-outline-success');
+        }
+        
+        // Update navbar count
+        this.updateNavbarCounts();
+    }
+    
+    updateNavbarCounts() {
+        // Update favorites count
+        const favoritesCountSpan = document.querySelector('.favorites-count');
+        if (favoritesCountSpan) {
+            const favorites = this.getFavorites();
+            favoritesCountSpan.textContent = favorites.length;
+        }
+        
+        // Update visited count
+        const visitedCountSpan = document.querySelector('.visited-count');
+        if (visitedCountSpan) {
+            const visited = this.getVisited();
+            visitedCountSpan.textContent = visited.length;
         }
     }
 
