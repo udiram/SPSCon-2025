@@ -18,7 +18,7 @@ else
     export FLASK_DEBUG=True
 fi
 
-# Set default PORT if not provided
+# Set default PORT if not provided (Railway will set this automatically)
 if [ -z "$PORT" ]; then
     export PORT=5000
 fi
@@ -27,6 +27,7 @@ echo "📊 Environment Configuration:"
 echo "   FLASK_ENV: $FLASK_ENV"
 echo "   FLASK_DEBUG: $FLASK_DEBUG"
 echo "   PORT: $PORT"
+echo "   HOST: 0.0.0.0"
 
 # Check if DATABASE_URL is set
 if [ -z "$DATABASE_URL" ]; then
@@ -43,6 +44,9 @@ if [ -z "$SECRET_KEY" ]; then
 else
     echo "✅ SECRET_KEY configured"
 fi
+
+# Set HOST for Railway
+export HOST="0.0.0.0"
 
 # Install/upgrade dependencies
 echo "📦 Installing dependencies..."

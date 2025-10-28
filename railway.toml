@@ -3,7 +3,7 @@ builder = "nixpacks"
 
 [deploy]
 startCommand = "./pre_deploy.sh && python app.py"
-healthcheckPath = "/"
+healthcheckPath = "/health"
 healthcheckTimeout = 100
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 10

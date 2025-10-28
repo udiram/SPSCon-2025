@@ -37,6 +37,16 @@ def create_app():
         return db.session.get(User, int(user_id))
     
     # Routes
+    @app.route('/health')
+    def health_check():
+        """Health check endpoint for Railway"""
+        return jsonify({
+            'status': 'healthy',
+            'service': 'SPSCon 2025',
+            'timestamp': datetime.utcnow().isoformat(),
+            'environment': os.environ.get('FLASK_ENV', 'development')
+        })
+    
     @app.route('/')
     def index():
         # Get statistics for dashboard (available to everyone)
@@ -612,7 +622,20 @@ def create_app():
 if __name__ == '__main__':
     app = create_app()
     
-    with app.app_context():
-        db.create_all()
+    # Only create tables if not in production (Railway handles this via deploy.py)
+    if os.environ.get('FLASK_ENV') != 'production':
+        with app.app_context():
+            db.create_all()
     
-    app.run(debug=True, host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+    # Get configuration from environment
+    debug = os.environ.get('FLASK_DEBUG', 'False').lower() == 'true'
+    host = os.environ.get('HOST', '0.0.0.0')
+    port = int(os.environ.get('PORT', 5000))
+    
+    print(f"🚀 Starting SPSCon 2025 Flask App")
+    print(f"   Environment: {os.environ.get('FLASK_ENV', 'development')}")
+    print(f"   Debug: {debug}")
+    print(f"   Host: {host}")
+    print(f"   Port: {port}")
+    
+    app.run(debug=debug, host=host, port=port)
