@@ -172,6 +172,8 @@ def backup_data():
     
     with app.app_context():
         try:
+            from sqlalchemy import text
+            
             backup = {
                 'users': [],
                 'posters': [],
@@ -180,18 +182,44 @@ def backup_data():
                 'presenter_statuses': []
             }
             
-            # Backup users
-            for user in User.query.all():
-                backup['users'].append({
-                    'id': user.id,
-                    'username': user.username,
-                    'email': user.email,
-                    'first_name': user.first_name,
-                    'last_name': user.last_name,
-                    'password_hash': user.password_hash,
-                    'is_admin': getattr(user, 'is_admin', False),
-                    'created_at': user.created_at.isoformat() if user.created_at else None
-                })
+            # Backup users using raw SQL to avoid model field issues
+            try:
+                # Try to get users with new model (includes is_admin)
+                for user in User.query.all():
+                    user_data = {
+                        'id': user.id,
+                        'username': user.username,
+                        'email': user.email,
+                        'first_name': user.first_name,
+                        'last_name': user.last_name,
+                        'password_hash': user.password_hash,
+                        'created_at': user.created_at.isoformat() if user.created_at else None
+                    }
+                    # Only include is_admin if it exists
+                    try:
+                        user_data['is_admin'] = user.is_admin
+                    except AttributeError:
+                        user_data['is_admin'] = False
+                    
+                    backup['users'].append(user_data)
+            except Exception as e:
+                # If model query fails (e.g., column doesn't exist), use raw SQL
+                print(f"   Model query failed, using raw SQL for user backup: {e}")
+                with db.engine.connect() as conn:
+                    result = conn.execute(text(
+                        "SELECT id, username, email, first_name, last_name, password_hash, created_at FROM user"
+                    ))
+                    for row in result:
+                        backup['users'].append({
+                            'id': row[0],
+                            'username': row[1],
+                            'email': row[2],
+                            'first_name': row[3],
+                            'last_name': row[4],
+                            'password_hash': row[5],
+                            'is_admin': False,  # Default for old data
+                            'created_at': row[6].isoformat() if row[6] else None
+                        })
             
             # Backup posters
             for poster in Poster.query.all():
@@ -396,11 +424,6 @@ def migrate_database():
             
             print(f"✅ All tables created: {current_tables}")
             
-            # Create default admin user
-            print("\n👤 Setting up admin user...")
-            if not create_default_admin():
-                print("⚠️  Failed to create admin user, but migration continues")
-            
             if has_data:
                 print("📥 Restoring data from backup...")
                 if not restore_data():
@@ -417,6 +440,11 @@ def migrate_database():
             print("🔄 Updating QR codes with correct domain...")
             if not update_qr_codes():
                 print("⚠️  QR code update failed, but migration continues")
+            
+            # Create/update default admin user (always at the end)
+            print("\n👤 Setting up admin user...")
+            if not create_default_admin():
+                print("⚠️  Failed to create admin user, but migration continues")
             
             print("✅ Database migration completed successfully")
             return True
