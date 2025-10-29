@@ -120,6 +120,21 @@ class LocalStorageManager {
         }
     }
 
+    toggleVisited(posterId) {
+        const visited = this.getVisited();
+        const index = visited.indexOf(posterId);
+        
+        if (index > -1) {
+            visited.splice(index, 1);
+            this.setVisited(visited);
+            return false; // Removed
+        } else {
+            visited.push(posterId);
+            this.setVisited(visited);
+            return true; // Added
+        }
+    }
+    
     markVisited(posterId) {
         const visited = this.getVisited();
         if (!visited.includes(posterId)) {
@@ -284,6 +299,15 @@ class LocalStorageManager {
             const currentCount = parseInt(countSpan.textContent) || 0;
             countSpan.textContent = currentCount + 1;
         }
+        
+        // Also update the dashboard stat card if we're on the dashboard
+        if (type === 'visited') {
+            const dashboardCounter = document.getElementById('totalVisitsCounter');
+            if (dashboardCounter) {
+                const currentCount = parseInt(dashboardCounter.textContent) || 0;
+                dashboardCounter.textContent = currentCount + 1;
+            }
+        }
     }
     
     decrementNavbarCount(type) {
@@ -292,6 +316,15 @@ class LocalStorageManager {
         if (countSpan) {
             const currentCount = parseInt(countSpan.textContent) || 0;
             countSpan.textContent = Math.max(0, currentCount - 1);
+        }
+        
+        // Also update the dashboard stat card if we're on the dashboard
+        if (type === 'visited') {
+            const dashboardCounter = document.getElementById('totalVisitsCounter');
+            if (dashboardCounter) {
+                const currentCount = parseInt(dashboardCounter.textContent) || 0;
+                dashboardCounter.textContent = Math.max(0, currentCount - 1);
+            }
         }
     }
 
@@ -530,9 +563,9 @@ async function markVisitedAPI(posterId) {
     const btn = document.getElementById(`visitBtn${posterId}`);
     // If guest, operate purely locally for instant UX
     if (document.body.classList.contains('user-anonymous')) {
-        localStorageManager.markVisited(posterId);
+        const wasAdded = localStorageManager.toggleVisited(posterId);
         localStorageManager.updateVisitedButton(posterId);
-        showToast('Marked as visited!', 'success');
+        showToast(wasAdded ? 'Marked as visited!' : 'Removed from visited', wasAdded ? 'success' : 'info');
         return;
     }
     const originalText = showLoading(btn);
@@ -557,27 +590,30 @@ async function markVisitedAPI(posterId) {
         
         if (data.use_local_storage) {
             // Handle with local storage
-            localStorageManager.markVisited(posterId);
+            const wasAdded = localStorageManager.toggleVisited(posterId);
             localStorageManager.updateVisitedButton(posterId);
-            showToast('Marked as visited!', 'success');
+            showToast(wasAdded ? 'Marked as visited!' : 'Removed from visited', wasAdded ? 'success' : 'info');
         } else {
             // Handle server response for logged-in user
             localStorageManager.updateVisitedButton(posterId);
             
             // Update navbar count for logged-in users
-            if (data.status === 'success') {
+            if (data.status === 'added') {
                 localStorageManager.incrementNavbarCount('visited');
                 showToast('Marked as visited!', 'success');
+            } else if (data.status === 'removed') {
+                localStorageManager.decrementNavbarCount('visited');
+                showToast('Removed from visited', 'info');
             } else {
-                showToast(data.message || 'Already marked as visited', 'info');
+                showToast(data.message || 'Info', 'info');
             }
         }
     } catch (error) {
         hideLoading(btn, originalText);
         // Network/parse issue – still fall back to local storage for a smooth UX
-        localStorageManager.markVisited(posterId);
+        const wasAdded = localStorageManager.toggleVisited(posterId);
         localStorageManager.updateVisitedButton(posterId);
-        showToast('Marked as visited!', 'success');
+        showToast(wasAdded ? 'Marked as visited!' : 'Removed from visited', wasAdded ? 'success' : 'info');
     }
 }
 

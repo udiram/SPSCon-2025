@@ -12,7 +12,7 @@ class User(UserMixin, db.Model):
     username = db.Column(db.String(80), unique=True, nullable=False)
     first_name = db.Column(db.String(100), nullable=False)
     last_name = db.Column(db.String(100), nullable=False)
-    password_hash = db.Column(db.String(120), nullable=False)
+    password_hash = db.Column(db.String(255), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     # Relationships
@@ -209,4 +209,48 @@ class UserSettings(db.Model):
             'show_activity': self.show_activity,
             'exclude_visited_recommendations': self.exclude_visited_recommendations,
             'recommendations_count': self.recommendations_count
+        }
+
+
+class ChangeRequest(db.Model):
+    """Model for user change requests to admins"""
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    request_type = db.Column(db.String(50), nullable=False)  # 'email', 'username', 'name', 'other'
+    field_name = db.Column(db.String(100), nullable=False)  # What field to change
+    current_value = db.Column(db.Text)  # Current value
+    proposed_value = db.Column(db.Text, nullable=False)  # Requested new value
+    reason = db.Column(db.Text, nullable=False)  # Why they want the change
+    status = db.Column(db.String(20), default='pending')  # pending, approved, denied
+    admin_notes = db.Column(db.Text)  # Notes from admin
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    reviewed_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    reviewed_at = db.Column(db.DateTime, nullable=True)
+    
+    user = db.relationship('User', foreign_keys=[user_id], backref='change_requests')
+    reviewer = db.relationship('User', foreign_keys=[reviewed_by], backref='reviewed_requests')
+    
+    def __repr__(self):
+        return f'<ChangeRequest {self.id}: {self.request_type} - {self.status}>'
+    
+    def to_dict(self):
+        """Convert to dictionary"""
+        return {
+            'id': self.id,
+            'user_id': self.user_id,
+            'username': self.user.username if self.user else None,
+            'user_email': self.user.email if self.user else None,
+            'request_type': self.request_type,
+            'field_name': self.field_name,
+            'current_value': self.current_value,
+            'proposed_value': self.proposed_value,
+            'reason': self.reason,
+            'status': self.status,
+            'admin_notes': self.admin_notes,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+            'reviewed_by': self.reviewed_by,
+            'reviewer_username': self.reviewer.username if self.reviewer else None,
+            'reviewed_at': self.reviewed_at.isoformat() if self.reviewed_at else None
         }

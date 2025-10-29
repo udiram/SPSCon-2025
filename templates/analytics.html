@@ -63,14 +63,21 @@
                 {% if most_visited_posters %}
                     <div class="list-group">
                         {% for poster, visit_count in most_visited_posters %}
-                        <div class="list-group-item d-flex justify-content-between align-items-center">
-                            <div>
-                                <h6 class="mb-1">Poster #{{ poster.poster_number }}</h6>
-                                <p class="mb-1 small">{{ poster.title[:60] }}{% if poster.title|length > 60 %}...{% endif %}</p>
-                                <small class="text-muted">{{ poster.get_full_name() }} - {{ poster.institution }}</small>
+                        <a href="{{ url_for('poster_detail', poster_id=poster.id) }}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center" style="text-decoration: none;">
+                            <div class="flex-grow-1">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div>
+                                        <h6 class="mb-1">
+                                            Poster #{{ poster.poster_number }}
+                                            <i class="bi bi-box-arrow-up-right ms-1 small text-muted"></i>
+                                        </h6>
+                                        <p class="mb-1 small">{{ poster.title[:60] }}{% if poster.title|length > 60 %}...{% endif %}</p>
+                                        <small class="text-muted">{{ poster.get_full_name() }} - {{ poster.institution }}</small>
+                                    </div>
+                                    <span class="badge bg-primary rounded-pill ms-3">{{ visit_count }} visits</span>
+                                </div>
                             </div>
-                            <span class="badge bg-primary rounded-pill">{{ visit_count }} visits</span>
-                        </div>
+                        </a>
                         {% endfor %}
                     </div>
                 {% else %}
@@ -172,6 +179,32 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Clickable poster items in analytics */
+.list-group-item-action {
+    transition: all 0.2s ease;
+}
+
+.list-group-item-action:hover {
+    transform: translateX(5px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+[data-theme="dark"] .list-group-item-action:hover {
+    box-shadow: 0 2px 8px rgba(255,255,255,0.1);
+}
+
+.list-group-item-action h6 {
+    color: var(--link-color);
+}
+
+.list-group-item-action:hover h6 {
+    color: var(--link-hover);
+}
+</style>
 {% endblock %}
 
 {% block extra_js %}

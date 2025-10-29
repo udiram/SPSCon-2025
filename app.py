@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
-from models import db, User, Poster, Favorite, Visit, PresenterStatus, UserProfile, UserQuery, RecommendationCache, UserSettings
+from models import db, User, Poster, Favorite, Visit, PresenterStatus, UserProfile, UserQuery, RecommendationCache, UserSettings, ChangeRequest
 from config import Config
 import json
 from datetime import datetime
@@ -301,7 +301,6 @@ def create_app():
         return render_template('favorites.html', posters=posters)
     
     @app.route('/analytics')
-    @login_required
     def analytics():
         # Get visit statistics
         total_visits = Visit.query.count()
@@ -418,7 +417,7 @@ def create_app():
 
     @app.route('/api/visit/<int:poster_id>', methods=['POST'])
     def mark_visited(poster_id):
-        """Mark a poster as visited"""
+        """Toggle visited status for a poster"""
         poster = db.session.get(Poster, poster_id)
         if not poster:
             from flask import abort
@@ -429,12 +428,16 @@ def create_app():
             visit = Visit.query.filter_by(user_id=current_user.id, poster_id=poster_id).first()
             
             if not visit:
+                # Add visit
                 visit = Visit(user_id=current_user.id, poster_id=poster_id)
                 db.session.add(visit)
                 db.session.commit()
-                return jsonify({'status': 'success', 'message': 'Marked as visited', 'use_local_storage': False})
+                return jsonify({'status': 'added', 'message': 'Marked as visited', 'use_local_storage': False})
             else:
-                return jsonify({'status': 'already_visited', 'message': 'Already marked as visited', 'use_local_storage': False})
+                # Remove visit (toggle off)
+                db.session.delete(visit)
+                db.session.commit()
+                return jsonify({'status': 'removed', 'message': 'Removed from visited', 'use_local_storage': False})
         else:
             # Anonymous user - return status for local storage
             return jsonify({'status': 'local_storage', 'message': 'Use local storage for anonymous users', 'use_local_storage': True})
