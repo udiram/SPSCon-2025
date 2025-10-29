@@ -445,6 +445,33 @@ def migrate_database():
             
             print(f"✅ All tables created: {current_tables}")
             
+            # Fix password_hash column length if needed (before creating admin)
+            print("\n🔧 Checking password_hash column length...")
+            try:
+                from sqlalchemy import text
+                with db.engine.connect() as conn:
+                    db_type = db.engine.dialect.name
+                    
+                    if db_type in ['mysql', 'mariadb']:
+                        print("   Extending password_hash to VARCHAR(255)...")
+                        conn.execute(text(
+                            "ALTER TABLE user MODIFY COLUMN password_hash VARCHAR(255) NOT NULL"
+                        ))
+                        conn.commit()
+                        print("   ✅ Password hash column extended")
+                    elif db_type == 'postgresql':
+                        print("   Extending password_hash to VARCHAR(255)...")
+                        conn.execute(text(
+                            "ALTER TABLE user ALTER COLUMN password_hash TYPE VARCHAR(255)"
+                        ))
+                        conn.commit()
+                        print("   ✅ Password hash column extended")
+                    else:
+                        print("   ℹ️  SQLite doesn't need column resize")
+            except Exception as e:
+                print(f"   ⚠️  Column resize: {e}")
+                print("   (May already be correct size)")
+            
             if has_data:
                 print("📥 Restoring data from backup...")
                 if not restore_data():
