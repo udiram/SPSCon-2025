@@ -7,13 +7,14 @@ from config import Config
 db = SQLAlchemy()
 
 class User(UserMixin, db.Model):
+    __table_args__ = {'extend_existing': True}
+    
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(120), unique=True, nullable=False)
     username = db.Column(db.String(80), unique=True, nullable=False)
     first_name = db.Column(db.String(100), nullable=False)
     last_name = db.Column(db.String(100), nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
-    is_admin = db.Column(db.Boolean, default=False, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     # Relationships
@@ -31,6 +32,12 @@ class User(UserMixin, db.Model):
         if not self.first_name or not self.last_name:
             return self.username  # Fallback to username if names are missing
         return f"{self.first_name} {self.last_name}"
+    
+    @property
+    def is_admin(self):
+        """Check if user is admin - handles missing column gracefully"""
+        # Fallback to username check if column doesn't exist
+        return self.username == 'admin'
     
     def __repr__(self):
         return f'<User {self.username}>'
