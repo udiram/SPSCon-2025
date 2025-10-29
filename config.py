@@ -8,6 +8,8 @@ class Config:
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or 'sqlite:///spscon.db'
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
+    # External APIs
+    GROQ_API_KEY = os.environ.get('GROQ_API_KEY')
     # Conference information
     CONFERENCE_NAME = "SPSCon 2025"
     SESSION_I_TIME = "Friday, October 31, 10:30 AM – 12:00 PM"

@@ -1,0 +1,625 @@
+{% extends "base.html" %}
+
+{% block title %}AI Recommendations - SPSCon 2025{% endblock %}
+
+{% block extra_css %}
+<style>
+    .recommendation-card {
+        border-left: 4px solid #3498db;
+        transition: all 0.3s ease;
+        margin-bottom: 1rem;
+    }
+    
+    .recommendation-card:hover {
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        transform: translateY(-2px);
+    }
+    
+    .query-input-section {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 15px;
+        padding: 30px;
+        margin-bottom: 30px;
+    }
+    
+    .query-textarea {
+        min-height: 120px;
+        font-size: 1.1rem;
+        border-radius: 10px;
+        border: none;
+        padding: 15px;
+    }
+    
+    .example-queries {
+        background: rgba(255,255,255,0.1);
+        border-radius: 10px;
+        padding: 15px;
+        margin-top: 15px;
+    }
+    
+    .example-query {
+        display: inline-block;
+        background: rgba(255,255,255,0.2);
+        padding: 5px 12px;
+        margin: 5px;
+        border-radius: 20px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    
+    .example-query:hover {
+        background: rgba(255,255,255,0.3);
+        transform: scale(1.05);
+    }
+    
+    .recommendation-section {
+        margin-top: 30px;
+    }
+    
+    .section-header {
+        border-bottom: 3px solid #3498db;
+        padding-bottom: 10px;
+        margin-bottom: 20px;
+    }
+    
+    .user-card {
+        background: #f8f9fa;
+        border-radius: 10px;
+        padding: 15px;
+        margin-bottom: 10px;
+        border-left: 4px solid #27ae60;
+    }
+    
+    .profile-insights {
+        background: white;
+        border-radius: 10px;
+        padding: 20px;
+        margin-bottom: 30px;
+        border: 2px solid #e0e0e0;
+    }
+    
+    .tag-badge {
+        display: inline-block;
+        background: #e3f2fd;
+        color: #1976d2;
+        padding: 5px 12px;
+        margin: 3px;
+        border-radius: 15px;
+        font-size: 0.9rem;
+    }
+    
+    .loading-spinner {
+        display: none;
+        text-align: center;
+        padding: 40px;
+    }
+    
+    .loading-spinner.active {
+        display: block;
+    }
+    
+    .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        color: #6c757d;
+    }
+    
+    .empty-state i {
+        font-size: 4rem;
+        margin-bottom: 20px;
+        opacity: 0.5;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="query-input-section">
+    <h2><i class="bi bi-robot"></i> AI-Powered Recommendations</h2>
+    <p class="mb-4">Tell us what you're interested in, and we'll recommend posters and people to connect with at the conference!</p>
+    
+    <form id="recommendationForm">
+        <div class="mb-3">
+            <textarea 
+                id="queryInput" 
+                class="form-control query-textarea" 
+                placeholder="E.g., I'm interested in quantum computing, machine learning applications in physics, and I'd like to connect with researchers working on experimental particle physics..."
+                required></textarea>
+        </div>
+        
+        <div class="example-queries">
+            <strong>Try these examples:</strong><br>
+            <span class="example-query" onclick="fillExample(this)">I'm interested in quantum computing and quantum information</span>
+            <span class="example-query" onclick="fillExample(this)">Show me posters about experimental particle physics</span>
+            <span class="example-query" onclick="fillExample(this)">I want to connect with people studying condensed matter physics</span>
+            <span class="example-query" onclick="fillExample(this)">Recommend posters related to astronomy and astrophysics</span>
+            <span class="example-query" onclick="fillExample(this)">I'm looking for career opportunities in physics education</span>
+        </div>
+        
+        <button type="submit" class="btn btn-light btn-lg mt-3" id="submitBtn">
+            <i class="bi bi-search"></i> Get Recommendations
+        </button>
+    </form>
+</div>
+
+{% if not current_user.is_authenticated %}
+<div class="alert alert-warning">
+    <i class="bi bi-info-circle"></i> <strong>Please log in</strong> to use AI recommendations. Your profile will be built from your favorites and visits.
+</div>
+{% endif %}
+
+<div class="loading-spinner" id="loadingSpinner">
+    <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+        <span class="visually-hidden">Loading...</span>
+    </div>
+    <p class="mt-3">Analyzing your preferences and generating recommendations...</p>
+</div>
+
+<div id="resultsContainer" style="display: none;">
+    <!-- Profile Insights -->
+    <div class="profile-insights" id="profileInsights" style="display: none;">
+        <h5><i class="bi bi-person-badge"></i> Your Profile Insights</h5>
+        <div id="profileContent"></div>
+    </div>
+    
+    <!-- Poster Recommendations -->
+    <div class="recommendation-section">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h3 class="section-header mb-0">
+                <i class="bi bi-file-earmark-post"></i> Recommended Posters
+                <span class="badge bg-primary ms-2" id="posterCount">0</span>
+            </h3>
+        </div>
+        
+        <!-- Filters and Search -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label for="searchBar" class="form-label"><i class="bi bi-search"></i> Search Results</label>
+                        <input type="text" class="form-control" id="searchBar" placeholder="Search by title, author, institution...">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="categoryFilter" class="form-label"><i class="bi bi-tag"></i> Category</label>
+                        <select class="form-select" id="categoryFilter">
+                            <option value="">All Categories</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="institutionFilter" class="form-label"><i class="bi bi-building"></i> Institution</label>
+                        <select class="form-select" id="institutionFilter">
+                            <option value="">All Institutions</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <label class="form-label"><i class="bi bi-bookmark"></i> Tags</label>
+                        <div id="tagFilters" class="d-flex flex-wrap gap-2"></div>
+                    </div>
+                </div>
+                <div class="row mt-2">
+                    <div class="col-12">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearFilters()">
+                            <i class="bi bi-x-circle"></i> Clear Filters
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div id="posterRecommendations" class="row"></div>
+        <div id="noResults" class="alert alert-info" style="display: none;">
+            <i class="bi bi-info-circle"></i> No results match your filters. Try adjusting your search criteria.
+        </div>
+    </div>
+    
+    <!-- User Recommendations -->
+    <div class="recommendation-section" id="userRecommendationsSection" style="display: none;">
+        <h3 class="section-header">
+            <i class="bi bi-people"></i> Connect With Similar Users
+            <span class="badge bg-success ms-2" id="userCount">0</span>
+        </h3>
+        <div id="userRecommendations"></div>
+    </div>
+</div>
+
+<div class="empty-state" id="emptyState">
+    <i class="bi bi-chat-dots"></i>
+    <h4>Start with a query above</h4>
+    <p>Share your interests and preferences to get personalized recommendations</p>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const queryInput = document.getElementById('queryInput');
+    const recommendationForm = document.getElementById('recommendationForm');
+    const loadingSpinner = document.getElementById('loadingSpinner');
+    const resultsContainer = document.getElementById('resultsContainer');
+    const emptyState = document.getElementById('emptyState');
+    const posterRecommendations = document.getElementById('posterRecommendations');
+    const userRecommendations = document.getElementById('userRecommendations');
+    const submitBtn = document.getElementById('submitBtn');
+    
+    // Store all recommendations for filtering
+    let allPosterRecommendations = [];
+    let allTags = new Set();
+    let allCategories = new Set();
+    let allInstitutions = new Set();
+
+    function fillExample(el) {
+        queryInput.value = el.textContent.trim();
+        queryInput.focus();
+    }
+
+    async function loadExistingRecommendations() {
+        {% if current_user.is_authenticated %}
+        try {
+            // Load poster recommendations
+            const posterRes = await fetch('/api/recommend/posters');
+            if (posterRes.ok) {
+                const data = await posterRes.json();
+                if (data.status === 'success' && data.posters.length > 0) {
+                    displayPosters(data.posters);
+                    emptyState.style.display = 'none';
+                    resultsContainer.style.display = 'block';
+                }
+            }
+            
+            // Load user recommendations
+            const userRes = await fetch('/api/recommend/users');
+            if (userRes.ok) {
+                const data = await userRes.json();
+                if (data.status === 'success' && data.users.length > 0) {
+                    displayUsers(data.users);
+                }
+            }
+            
+            // Load profile
+            const profileRes = await fetch('/api/profile');
+            if (profileRes.ok) {
+                const data = await profileRes.json();
+                if (data.status === 'success') {
+                    displayProfile(data.profile);
+                }
+            }
+        } catch (error) {
+            console.error('Error loading recommendations:', error);
+        }
+        {% endif %}
+    }
+
+    function displayProfile(profile) {
+        const profileInsights = document.getElementById('profileInsights');
+        const profileContent = document.getElementById('profileContent');
+        
+        let html = '<div class="row">';
+        
+        if (profile.interests && profile.interests.length > 0) {
+            html += '<div class="col-md-6 mb-3"><strong>Interests:</strong><br>';
+            profile.interests.forEach(interest => {
+                html += `<span class="tag-badge">${interest}</span>`;
+            });
+            html += '</div>';
+        }
+        
+        if (profile.top_tags && profile.top_tags.length > 0) {
+            html += '<div class="col-md-6 mb-3"><strong>Top Tags:</strong><br>';
+            profile.top_tags.forEach(tag => {
+                html += `<span class="tag-badge">${tag}</span>`;
+            });
+            html += '</div>';
+        }
+        
+        if (profile.categories && profile.categories.length > 0) {
+            html += '<div class="col-md-6 mb-3"><strong>Categories:</strong><br>';
+            profile.categories.forEach(cat => {
+                html += `<span class="tag-badge">${cat}</span>`;
+            });
+            html += '</div>';
+        }
+        
+        html += `<div class="col-md-6 mb-3">
+            <strong>Stats:</strong><br>
+            <span class="badge bg-danger">${profile.favorite_count} Favorites</span>
+            <span class="badge bg-success">${profile.visit_count} Visited</span>
+        </div>`;
+        
+        html += '</div>';
+        profileContent.innerHTML = html;
+        profileInsights.style.display = 'block';
+    }
+
+    function displayPosters(posters) {
+        // Store all recommendations for filtering
+        allPosterRecommendations = posters;
+        
+        // Extract all unique tags, categories, and institutions
+        allTags.clear();
+        allCategories.clear();
+        allInstitutions.clear();
+        
+        posters.forEach(poster => {
+            allCategories.add(poster.category);
+            allInstitutions.add(poster.institution);
+            // Extract tags from the poster object if available (from API response or parse from title)
+            // For now, we'll populate from existing data structure
+        });
+        
+        // Populate filter dropdowns
+        populateFilters();
+        
+        // Apply current filters and display
+        applyFilters();
+    }
+        
+    function populateFilters() {
+        // Populate category filter
+        const categoryFilter = document.getElementById('categoryFilter');
+        const currentCategory = categoryFilter.value;
+        categoryFilter.innerHTML = '<option value="">All Categories</option>';
+        Array.from(allCategories).sort().forEach(cat => {
+            const option = document.createElement('option');
+            option.value = cat;
+            option.textContent = cat;
+            categoryFilter.appendChild(option);
+        });
+        categoryFilter.value = currentCategory;
+        
+        // Populate institution filter
+        const institutionFilter = document.getElementById('institutionFilter');
+        const currentInstitution = institutionFilter.value;
+        institutionFilter.innerHTML = '<option value="">All Institutions</option>';
+        Array.from(allInstitutions).sort().forEach(inst => {
+            const option = document.createElement('option');
+            option.value = inst;
+            option.textContent = inst;
+            institutionFilter.appendChild(option);
+        });
+        institutionFilter.value = currentInstitution;
+        
+        // Populate tag filters
+        const tagFiltersContainer = document.getElementById('tagFilters');
+        tagFiltersContainer.innerHTML = '';
+        Array.from(allTags).sort().forEach(tag => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'btn btn-sm btn-outline-primary tag-filter-btn';
+            btn.dataset.tag = tag;
+            btn.textContent = tag;
+            btn.addEventListener('click', function() {
+                this.classList.toggle('active');
+                applyFilters();
+            });
+            tagFiltersContainer.appendChild(btn);
+        });
+    }
+    
+    function applyFilters() {
+        const searchQuery = document.getElementById('searchBar').value.toLowerCase().trim();
+        const categoryFilter = document.getElementById('categoryFilter').value;
+        const institutionFilter = document.getElementById('institutionFilter').value;
+        const selectedTags = Array.from(document.querySelectorAll('#tagFilters .tag-filter-btn.active'))
+            .map(btn => btn.dataset.tag);
+        
+        // Filter posters
+        let filtered = allPosterRecommendations.filter(poster => {
+            // Search filter
+            if (searchQuery) {
+                const searchText = `${poster.title} ${poster.author} ${poster.institution}`.toLowerCase();
+                if (!searchText.includes(searchQuery)) {
+                    return false;
+                }
+            }
+            
+            // Category filter
+            if (categoryFilter && poster.category !== categoryFilter) {
+                return false;
+            }
+            
+            // Institution filter
+            if (institutionFilter && poster.institution !== institutionFilter) {
+                return false;
+            }
+            
+            // Tag filter (if tags are available in poster object)
+            if (selectedTags.length > 0 && poster.tags) {
+                const posterTags = Array.isArray(poster.tags) ? poster.tags : [];
+                const hasMatchingTag = selectedTags.some(tag => 
+                    posterTags.some(pt => pt.toLowerCase().includes(tag.toLowerCase()) || tag.toLowerCase().includes(pt.toLowerCase()))
+                );
+                if (!hasMatchingTag) {
+                    return false;
+                }
+            }
+            
+            return true;
+        });
+        
+        // Display filtered results (already ranked by relevance)
+        // Limit to top 20 after filtering
+        const topFiltered = filtered.slice(0, 20);
+        renderFilteredPosters(topFiltered);
+        
+        // Update count
+        document.getElementById('posterCount').textContent = topFiltered.length;
+        
+        // Show/hide no results message
+        const noResults = document.getElementById('noResults');
+        if (filtered.length === 0 && allPosterRecommendations.length > 0) {
+            noResults.style.display = 'block';
+        } else {
+            noResults.style.display = 'none';
+        }
+    }
+    
+    function renderFilteredPosters(posters) {
+        posterRecommendations.innerHTML = '';
+        
+        if (posters.length === 0) {
+            return;
+        }
+        
+        posters.forEach(poster => {
+            const card = document.createElement('div');
+            card.className = 'col-md-6 mb-3';
+            const tagsHtml = poster.tags && Array.isArray(poster.tags) 
+                ? poster.tags.map(tag => `<span class="badge bg-light text-dark me-1">${tag}</span>`).join('')
+                : '';
+            
+            card.innerHTML = `
+                <div class="card recommendation-card">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <h5 class="card-title mb-0">
+                                <a href="${poster.url}" class="text-decoration-none">
+                                    Poster #${poster.poster_number}: ${poster.title}
+                                </a>
+                            </h5>
+                        </div>
+                        <p class="text-muted mb-2">
+                            <strong>${poster.author}</strong> • ${poster.institution}<br>
+                            <span class="badge bg-secondary">${poster.category}</span>
+                            <span class="badge bg-info">Session ${poster.session}</span>
+                            ${tagsHtml}
+                        </p>
+                        <p class="card-text"><small class="text-muted">
+                            <i class="bi bi-lightbulb"></i> ${poster.reasons || 'Recommended based on your preferences'}
+                        </small></p>
+                    </div>
+                </div>
+            `;
+            posterRecommendations.appendChild(card);
+        });
+    }
+    
+    function clearFilters() {
+        document.getElementById('searchBar').value = '';
+        document.getElementById('categoryFilter').value = '';
+        document.getElementById('institutionFilter').value = '';
+        document.querySelectorAll('#tagFilters .tag-filter-btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        applyFilters();
+    }
+
+    function displayUsers(users) {
+        const section = document.getElementById('userRecommendationsSection');
+        const container = document.getElementById('userRecommendations');
+        container.innerHTML = '';
+        document.getElementById('userCount').textContent = users.length;
+        
+        if (users.length === 0) {
+            return;
+        }
+        
+        section.style.display = 'block';
+        
+        users.forEach(user => {
+            const card = document.createElement('div');
+            card.className = 'user-card';
+            card.innerHTML = `
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <h5 class="mb-1">${user.full_name || user.username}</h5>
+                        <p class="text-muted mb-2">
+                            ${user.shared_posters > 0 ? `<span class="badge bg-primary">${user.shared_posters} shared posters</span>` : ''}
+                        </p>
+                        ${user.shared_categories && user.shared_categories.length > 0 ? `
+                            <div>
+                                <strong>Shared interests:</strong>
+                                ${user.shared_categories.map(cat => `<span class="badge bg-info ms-1">${cat}</span>`).join('')}
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+            container.appendChild(card);
+        });
+    }
+
+    recommendationForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        {% if not current_user.is_authenticated %}
+        alert('Please log in to use AI recommendations');
+        return;
+        {% endif %}
+        
+        const query = queryInput.value.trim();
+        if (!query) {
+            alert('Please enter a query');
+            return;
+        }
+        
+        // Show loading
+        loadingSpinner.classList.add('active');
+        resultsContainer.style.display = 'none';
+        emptyState.style.display = 'none';
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Processing...';
+        
+        try {
+            const response = await fetch('/api/recommend/query', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ query: query })
+            });
+            
+            const data = await response.json();
+            
+            if (data.status === 'success') {
+                displayPosters(data.posters || []);
+                displayUsers(data.users || []);
+                
+                // Reload profile
+                const profileRes = await fetch('/api/profile');
+                if (profileRes.ok) {
+                    const profileData = await profileRes.json();
+                    if (profileData.status === 'success') {
+                        displayProfile(profileData.profile);
+                    }
+                }
+                
+                resultsContainer.style.display = 'block';
+                emptyState.style.display = 'none';
+            } else {
+                alert('Error: ' + (data.message || 'Unknown error'));
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Error fetching recommendations. Please try again.');
+        } finally {
+            loadingSpinner.classList.remove('active');
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="bi bi-search"></i> Get Recommendations';
+        }
+    });
+
+    // Add event listeners for filters
+    document.addEventListener('DOMContentLoaded', function() {
+        {% if current_user.is_authenticated %}
+        loadExistingRecommendations();
+        {% endif %}
+        
+        // Filter event listeners
+        const searchBar = document.getElementById('searchBar');
+        const categoryFilter = document.getElementById('categoryFilter');
+        const institutionFilter = document.getElementById('institutionFilter');
+        
+        if (searchBar) {
+            searchBar.addEventListener('input', applyFilters);
+        }
+        if (categoryFilter) {
+            categoryFilter.addEventListener('change', applyFilters);
+        }
+        if (institutionFilter) {
+            institutionFilter.addEventListener('change', applyFilters);
+        }
+    });
+</script>
+{% endblock %}
+

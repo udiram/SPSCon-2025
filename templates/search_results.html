@@ -86,7 +86,12 @@
                                 <div class="card-body">
                                     <div class="d-flex justify-content-between align-items-start mb-2">
                                         <h6 class="card-title mb-0">Poster #{{ poster.poster_number }}</h6>
-                                        <span class="badge bg-info">Session {{ poster.session }}</span>
+                                        <div>
+                                            <span class="badge bg-info">Session {{ poster.session }}</span>
+                                            <span class="badge bg-secondary ms-1" title="Total registered visits">
+                                                <i class="bi bi-eye"></i> {{ visit_counts.get(poster.id, 0) }}
+                                            </span>
+                                        </div>
                                     </div>
                                     
                                     <h6 class="card-subtitle mb-2 text-muted">{{ poster.get_full_name() }}</h6>

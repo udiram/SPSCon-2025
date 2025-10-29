@@ -2,35 +2,251 @@
 
 {% block title %}Institutions - SPSCon 2025{% endblock %}
 
+{% block extra_css %}
+<!-- Leaflet CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+<style>
+    #map {
+        height: 70vh;
+        min-height: 500px;
+        border-radius: 0.375rem;
+    }
+    .institution-popup {
+        text-align: center;
+    }
+    .institution-popup h6 {
+        margin-bottom: 10px;
+        color: #0d6efd;
+    }
+    .view-toggle-btn {
+        min-width: 120px;
+    }
+    [data-theme="dark"] .leaflet-tile {
+        filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="row">
     <div class="col-12">
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
-                <h4><i class="bi bi-building"></i> Institutions</h4>
-                <span class="badge bg-primary">{{ institutions|length }} institutions</span>
+                <div>
+                    <h4 class="mb-0"><i class="bi bi-building"></i> Institutions</h4>
+                    <small class="text-muted">{{ institutions|length }} institutions represented</small>
+                </div>
+                <div class="btn-group" role="group">
+                    <button type="button" class="btn btn-outline-primary view-toggle-btn active" id="mapViewBtn" onclick="showView('map')">
+                        <i class="bi bi-map"></i> Map View
+                    </button>
+                    <button type="button" class="btn btn-outline-primary view-toggle-btn" id="listViewBtn" onclick="showView('list')">
+                        <i class="bi bi-list-ul"></i> List View
+                    </button>
+                </div>
             </div>
             <div class="card-body">
-                {% if institutions %}
-                <div class="list-group">
-                    {% for inst, count in institutions %}
-                    <a href="{{ url_for('institutions_detail', institution_name=inst) }}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
-                        <span>{{ inst }}</span>
-                        <span class="badge bg-secondary rounded-pill">{{ count }}</span>
-                    </a>
-                    {% endfor %}
+                <!-- Map View -->
+                <div id="mapView">
+                    <div id="map"></div>
+                    <div class="mt-3 text-muted small text-center">
+                        <i class="bi bi-info-circle"></i> Click on markers to view institution details and poster counts
+                    </div>
                 </div>
-                {% else %}
-                <div class="text-center py-5">
-                    <i class="bi bi-building display-1 text-muted"></i>
-                    <h4 class="mt-3">No institutions found</h4>
-                    <p class="text-muted">Try importing or seeding poster data.</p>
+                
+                <!-- List View -->
+                <div id="listView" style="display: none;">
+                    {% if institutions %}
+                    <div class="mb-3">
+                        <input type="text" class="form-control" id="institutionSearch" placeholder="Search institutions..." onkeyup="filterInstitutions()">
+                    </div>
+                    <div class="list-group" id="institutionList">
+                        {% for inst, count in institutions %}
+                        <a href="{{ url_for('institutions_detail', institution_name=inst) }}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center institution-item" data-name="{{ inst|lower }}">
+                            <span><i class="bi bi-building me-2"></i>{{ inst }}</span>
+                            <span class="badge bg-primary rounded-pill">{{ count }} poster{{ 's' if count != 1 else '' }}</span>
+                        </a>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="text-center py-5">
+                        <i class="bi bi-building display-1 text-muted"></i>
+                        <h4 class="mt-3">No institutions found</h4>
+                        <p class="text-muted">Try importing or seeding poster data.</p>
+                    </div>
+                    {% endif %}
                 </div>
-                {% endif %}
             </div>
         </div>
     </div>
 </div>
+
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+
+<script>
+// Initialize map
+let map;
+let markers;
+
+// Approximate US state/region coordinates for geocoding
+const stateCoords = {
+    'alabama': [32.806671, -86.791130], 'alaska': [61.370716, -152.404419], 'arizona': [33.729759, -111.431221],
+    'arkansas': [34.969704, -92.373123], 'california': [36.116203, -119.681564], 'colorado': [39.059811, -105.311104],
+    'connecticut': [41.597782, -72.755371], 'delaware': [39.318523, -75.507141], 'florida': [27.766279, -81.686783],
+    'georgia': [33.040619, -83.643074], 'hawaii': [21.094318, -157.498337], 'idaho': [44.240459, -114.478828],
+    'illinois': [40.349457, -88.986137], 'indiana': [39.849426, -86.258278], 'iowa': [42.011539, -93.210526],
+    'kansas': [38.526600, -96.726486], 'kentucky': [37.668140, -84.670067], 'louisiana': [31.169546, -91.867805],
+    'maine': [44.693947, -69.381927], 'maryland': [39.063946, -76.802101], 'massachusetts': [42.230171, -71.530106],
+    'michigan': [43.326618, -84.536095], 'minnesota': [45.694454, -93.900192], 'mississippi': [32.741646, -89.678696],
+    'missouri': [38.456085, -92.288368], 'montana': [46.921925, -110.454353], 'nebraska': [41.125370, -98.268082],
+    'nevada': [38.313515, -117.055374], 'new hampshire': [43.452492, -71.563896], 'new jersey': [40.298904, -74.521011],
+    'new mexico': [34.840515, -106.248482], 'new york': [42.165726, -74.948051], 'north carolina': [35.630066, -79.806419],
+    'north dakota': [47.528912, -99.784012], 'ohio': [40.388783, -82.764915], 'oklahoma': [35.565342, -96.928917],
+    'oregon': [44.572021, -122.070938], 'pennsylvania': [40.590752, -77.209755], 'rhode island': [41.680893, -71.511780],
+    'south carolina': [33.856892, -80.945007], 'south dakota': [44.299782, -99.438828], 'tennessee': [35.747845, -86.692345],
+    'texas': [31.054487, -97.563461], 'utah': [40.150032, -111.862434], 'vermont': [44.045876, -72.710686],
+    'virginia': [37.769337, -78.169968], 'washington': [47.400902, -121.490494], 'west virginia': [38.491226, -80.954453],
+    'wisconsin': [44.268543, -89.616508], 'wyoming': [42.755966, -107.302490]
+};
+
+// Major city coordinates
+const cityCoords = {
+    'boston': [42.3601, -71.0589], 'new york': [40.7128, -74.0060], 'philadelphia': [39.9526, -75.1652],
+    'washington': [38.9072, -77.0369], 'atlanta': [33.7490, -84.3880], 'miami': [25.7617, -80.1918],
+    'chicago': [41.8781, -87.6298], 'detroit': [42.3314, -83.0458], 'minneapolis': [44.9778, -93.2650],
+    'dallas': [32.7767, -96.7970], 'houston': [29.7604, -95.3698], 'austin': [30.2672, -97.7431],
+    'san antonio': [29.4241, -98.4936], 'phoenix': [33.4484, -112.0740], 'los angeles': [34.0522, -118.2437],
+    'san diego': [32.7157, -117.1611], 'san francisco': [37.7749, -122.4194], 'san jose': [37.3382, -121.8863],
+    'seattle': [47.6062, -122.3321], 'portland': [45.5152, -122.6784], 'denver': [39.7392, -104.9903],
+    'salt lake city': [40.7608, -111.8910], 'las vegas': [36.1699, -115.1398]
+};
+
+// Function to geocode institution name to approximate coordinates
+function geocodeInstitution(name) {
+    const nameLower = name.toLowerCase();
+    
+    // Check city names first
+    for (const [city, coords] of Object.entries(cityCoords)) {
+        if (nameLower.includes(city)) {
+            // Add slight random offset to prevent exact overlaps
+            return [coords[0] + (Math.random() - 0.5) * 0.1, coords[1] + (Math.random() - 0.5) * 0.1];
+        }
+    }
+    
+    // Check state names
+    for (const [state, coords] of Object.entries(stateCoords)) {
+        if (nameLower.includes(state)) {
+            return [coords[0] + (Math.random() - 0.5) * 0.5, coords[1] + (Math.random() - 0.5) * 0.5];
+        }
+    }
+    
+    // Default to center of US with more random spread
+    return [39.8283 + (Math.random() - 0.5) * 10, -98.5795 + (Math.random() - 0.5) * 20];
+}
+
+// Initialize the map
+function initMap() {
+    // Create map centered on USA
+    map = L.map('map').setView([39.8283, -98.5795], 4);
+    
+    // Add tile layer
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        maxZoom: 18,
+    }).addTo(map);
+    
+    // Create marker cluster group
+    markers = L.markerClusterGroup({
+        maxClusterRadius: 50,
+        spiderfyOnMaxZoom: true,
+        showCoverageOnHover: false,
+        zoomToBoundsOnClick: true
+    });
+    
+    // Add institutions to map
+    const institutions = {{ institutions|tojson }};
+    institutions.forEach(([name, count]) => {
+        const coords = geocodeInstitution(name);
+        const marker = L.marker(coords);
+        
+        const popupContent = `
+            <div class="institution-popup">
+                <h6>${name}</h6>
+                <p class="mb-2">${count} poster${count !== 1 ? 's' : ''}</p>
+                <a href="/institutions/${encodeURIComponent(name)}" class="btn btn-sm btn-primary">
+                    <i class="bi bi-eye"></i> View Posters
+                </a>
+            </div>
+        `;
+        
+        marker.bindPopup(popupContent);
+        markers.addLayer(marker);
+    });
+    
+    map.addLayer(markers);
+    
+    // Fit map to markers
+    if (institutions.length > 0) {
+        setTimeout(() => {
+            map.fitBounds(markers.getBounds(), { padding: [50, 50] });
+        }, 100);
+    }
+}
+
+// View switching
+function showView(view) {
+    const mapView = document.getElementById('mapView');
+    const listView = document.getElementById('listView');
+    const mapBtn = document.getElementById('mapViewBtn');
+    const listBtn = document.getElementById('listViewBtn');
+    
+    if (view === 'map') {
+        mapView.style.display = 'block';
+        listView.style.display = 'none';
+        mapBtn.classList.add('active');
+        listBtn.classList.remove('active');
+        
+        // Reinitialize map if needed
+        if (!map) {
+            initMap();
+        } else {
+            setTimeout(() => map.invalidateSize(), 100);
+        }
+        
+        localStorage.setItem('institutionsView', 'map');
+    } else {
+        mapView.style.display = 'none';
+        listView.style.display = 'block';
+        mapBtn.classList.remove('active');
+        listBtn.classList.add('active');
+        
+        localStorage.setItem('institutionsView', 'list');
+    }
+}
+
+// Filter institutions in list view
+function filterInstitutions() {
+    const searchValue = document.getElementById('institutionSearch').value.toLowerCase();
+    const items = document.querySelectorAll('.institution-item');
+    
+    items.forEach(item => {
+        const name = item.dataset.name;
+        if (name.includes(searchValue)) {
+            item.style.display = '';
+        } else {
+            item.style.display = 'none';
+        }
+    });
+}
+
+// Load preferred view from localStorage
+document.addEventListener('DOMContentLoaded', function() {
+    const preferredView = localStorage.getItem('institutionsView') || 'map';
+    showView(preferredView);
+});
+</script>
 {% endblock %}
-
-

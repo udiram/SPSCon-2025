@@ -115,3 +115,98 @@ class PresenterStatus(db.Model):
     
     def __repr__(self):
         return f'<PresenterStatus {self.poster_id}-{self.user_id}: {self.is_available}>'
+
+# -----------------------------
+# AI Recommendation Models
+# -----------------------------
+
+class UserProfile(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, unique=True)
+    # Flexible JSON blobs to store evolving preferences and interests
+    preferences_json = db.Column(db.Text)  # JSON string
+    interests_json = db.Column(db.Text)    # JSON string
+    research_areas = db.Column(db.Text)    # comma-separated or JSON
+    academic_background = db.Column(db.Text)
+    last_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = db.relationship('User', backref=db.backref('profile', uselist=False))
+
+    def __repr__(self):
+        return f'<UserProfile user_id={self.user_id}>'
+
+
+class UserQuery(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    query_text = db.Column(db.Text, nullable=False)
+    extracted_interests = db.Column(db.Text)  # JSON string
+    context = db.Column(db.Text)              # JSON string for extra metadata
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship('User', backref='queries')
+
+    def __repr__(self):
+        return f'<UserQuery id={self.id} user_id={self.user_id}>'
+
+
+class RecommendationCache(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    query_hash = db.Column(db.String(64), index=True)  # sha256
+    recommendations_json = db.Column(db.Text)  # JSON string containing posters/users
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    expires_at = db.Column(db.DateTime, nullable=True)
+
+    user = db.relationship('User', backref='recommendation_caches')
+
+    def __repr__(self):
+        return f'<RecommendationCache id={self.id} user_id={self.user_id}>'
+
+
+class UserSettings(db.Model):
+    """User preferences and settings"""
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, unique=True)
+    
+    # Appearance
+    dark_mode = db.Column(db.Boolean, default=False)
+    compact_view = db.Column(db.Boolean, default=False)
+    font_size = db.Column(db.String(20), default='medium')  # small, medium, large
+    high_contrast = db.Column(db.Boolean, default=False)
+    reduce_animations = db.Column(db.Boolean, default=False)
+    
+    # Notifications
+    email_notifications = db.Column(db.Boolean, default=True)
+    
+    # Privacy
+    profile_visible = db.Column(db.Boolean, default=True)
+    show_activity = db.Column(db.Boolean, default=True)
+    
+    # Recommendations
+    exclude_visited_recommendations = db.Column(db.Boolean, default=True)
+    recommendations_count = db.Column(db.Integer, default=20)
+    
+    # Timestamps
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    user = db.relationship('User', backref=db.backref('settings', uselist=False))
+    
+    def __repr__(self):
+        return f'<UserSettings user_id={self.user_id}>'
+    
+    def to_dict(self):
+        """Convert settings to dictionary"""
+        return {
+            'dark_mode': self.dark_mode,
+            'compact_view': self.compact_view,
+            'font_size': self.font_size,
+            'high_contrast': self.high_contrast,
+            'reduce_animations': self.reduce_animations,
+            'email_notifications': self.email_notifications,
+            'profile_visible': self.profile_visible,
+            'show_activity': self.show_activity,
+            'exclude_visited_recommendations': self.exclude_visited_recommendations,
+            'recommendations_count': self.recommendations_count
+        }

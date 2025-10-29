@@ -6,37 +6,51 @@
 <div class="row">
     <div class="col-12">
         <h2><i class="bi bi-bar-chart"></i> Conference Analytics</h2>
-        <p class="text-muted">Real-time statistics and engagement metrics</p>
+        <p class="text-muted">Real-time statistics and engagement metrics for all registered users</p>
+        <div class="alert alert-light border">
+            <small><i class="bi bi-info-circle"></i> <strong>Note:</strong> Analytics show visits from all logged-in users who clicked "Mark as Visited" on poster pages. Guest/anonymous visits stored in browser localStorage are not included in these statistics.</small>
+        </div>
     </div>
 </div>
 
 <!-- Statistics Cards -->
 <div class="row mb-4">
-    <div class="col-md-3">
+    <div class="col-md-3 mb-3">
         <div class="stat-card">
             <div class="stat-number">{{ total_visits }}</div>
             <div>Total Visits</div>
         </div>
     </div>
-    <div class="col-md-3">
+    <div class="col-md-3 mb-3">
         <div class="stat-card">
             <div class="stat-number">{{ unique_visitors }}</div>
             <div>Unique Visitors</div>
         </div>
     </div>
-    <div class="col-md-3">
+    <div class="col-md-3 mb-3">
         <div class="stat-card">
             <div class="stat-number">{{ most_visited_posters|length }}</div>
             <div>Active Posters</div>
         </div>
     </div>
-    <div class="col-md-3">
+    <div class="col-md-3 mb-3">
         <div class="stat-card">
             <div class="stat-number">{{ institution_engagement|length }}</div>
             <div>Engaged Institutions</div>
         </div>
     </div>
 </div>
+
+{% if total_visits == 0 %}
+<div class="row">
+    <div class="col-12">
+        <div class="alert alert-info">
+            <h4><i class="bi bi-info-circle"></i> No Visit Data Yet</h4>
+            <p class="mb-0">Start visiting posters to see analytics data here. Click the "Mark as Visited" button on poster detail pages to track your visits.</p>
+        </div>
+    </div>
+</div>
+{% endif %}
 
 <div class="row">
     <!-- Most Visited Posters -->
@@ -162,122 +176,121 @@
 
 {% block extra_js %}
 <script>
+// Real visit trends data from backend
+const visitTrendsData = {{ visit_trends|tojson }};
+
 // Visit Trends Chart
-const visitTrendsSvg = d3.select("#visit-trends-chart")
-    .append("svg")
-    .attr("width", "100%")
-    .attr("height", 300);
+if (visitTrendsData && visitTrendsData.length > 0) {
+    const visitTrendsSvg = d3.select("#visit-trends-chart")
+        .append("svg")
+        .attr("width", "100%")
+        .attr("height", 300);
 
-// Sample data - in a real implementation, this would come from the backend
-const visitTrendsData = [
-    {time: "10:00", visits: 15},
-    {time: "10:30", visits: 28},
-    {time: "11:00", visits: 42},
-    {time: "11:30", visits: 35},
-    {time: "12:00", visits: 38},
-    {time: "12:30", visits: 25}
-];
+    const margin = {top: 20, right: 30, bottom: 40, left: 40};
+    const width = 450 - margin.left - margin.right;
+    const height = 300 - margin.top - margin.bottom;
 
-const margin = {top: 20, right: 30, bottom: 40, left: 40};
-const width = 400 - margin.left - margin.right;
-const height = 300 - margin.top - margin.bottom;
+    const g = visitTrendsSvg.append("g")
+        .attr("transform", `translate(${margin.left},${margin.top})`);
 
-const g = visitTrendsSvg.append("g")
-    .attr("transform", `translate(${margin.left},${margin.top})`);
+    const x = d3.scaleBand()
+        .domain(visitTrendsData.map(d => d.date))
+        .range([0, width])
+        .padding(0.1);
 
-const x = d3.scaleBand()
-    .domain(visitTrendsData.map(d => d.time))
-    .range([0, width])
-    .padding(0.1);
+    const y = d3.scaleLinear()
+        .domain([0, d3.max(visitTrendsData, d => d.count) || 1])
+        .range([height, 0]);
 
-const y = d3.scaleLinear()
-    .domain([0, d3.max(visitTrendsData, d => d.visits)])
-    .range([height, 0]);
+    g.selectAll(".bar")
+        .data(visitTrendsData)
+        .enter().append("rect")
+        .attr("class", "bar")
+        .attr("x", d => x(d.date))
+        .attr("y", d => y(d.count))
+        .attr("width", x.bandwidth())
+        .attr("height", d => height - y(d.count))
+        .attr("fill", "#3498db");
 
-g.selectAll(".bar")
-    .data(visitTrendsData)
-    .enter().append("rect")
-    .attr("class", "bar")
-    .attr("x", d => x(d.time))
-    .attr("y", d => y(d.visits))
-    .attr("width", x.bandwidth())
-    .attr("height", d => height - y(d.visits))
-    .attr("fill", "#3498db");
+    g.append("g")
+        .attr("transform", `translate(0,${height})`)
+        .call(d3.axisBottom(x));
 
-g.append("g")
-    .attr("transform", `translate(0,${height})`)
-    .call(d3.axisBottom(x));
-
-g.append("g")
-    .call(d3.axisLeft(y));
+    g.append("g")
+        .call(d3.axisLeft(y));
+}
 
 // Category Engagement Chart
-const categoryEngagementSvg = d3.select("#category-engagement-chart")
-    .append("svg")
-    .attr("width", "100%")
-    .attr("height", 300);
+const categoryEngagementData = {{ category_engagement|tojson }};
+const categoryDataArray = Object.entries(categoryEngagementData).map(([category, visits]) => ({
+    category: category,
+    visits: visits
+}));
 
-// Sample data
-const categoryEngagementData = [
-    {category: "Research", visits: 45},
-    {category: "Careers", visits: 28},
-    {category: "Phase Shifts", visits: 15},
-    {category: "Sigma Pi Sigma", visits: 12}
-];
+if (categoryDataArray.length > 0) {
+    const categoryEngagementSvg = d3.select("#category-engagement-chart")
+        .append("svg")
+        .attr("width", "100%")
+        .attr("height", 300);
 
-const pie = d3.pie()
-    .value(d => d.visits)
-    .sort(null);
+    const pie = d3.pie()
+        .value(d => d.visits)
+        .sort(null);
 
-const arc = d3.arc()
-    .innerRadius(60)
-    .outerRadius(120);
+    const arc = d3.arc()
+        .innerRadius(60)
+        .outerRadius(120);
 
-const color = d3.scaleOrdinal()
-    .domain(categoryEngagementData.map(d => d.category))
-    .range(["#3498db", "#e74c3c", "#2ecc71", "#f39c12"]);
+    const color = d3.scaleOrdinal()
+        .domain(categoryDataArray.map(d => d.category))
+        .range(["#3498db", "#e74c3c", "#2ecc71", "#f39c12", "#9b59b6", "#1abc9c"]);
 
-const categoryG = categoryEngagementSvg.append("g")
-    .attr("transform", "translate(200, 150)");
+    const categoryG = categoryEngagementSvg.append("g")
+        .attr("transform", "translate(200, 150)");
 
-const arcs = categoryG.selectAll(".arc")
-    .data(pie(categoryEngagementData))
-    .enter().append("g")
-    .attr("class", "arc");
+    const arcs = categoryG.selectAll(".arc")
+        .data(pie(categoryDataArray))
+        .enter().append("g")
+        .attr("class", "arc");
 
-arcs.append("path")
-    .attr("d", arc)
-    .attr("fill", (d, i) => color(d.data.category))
-    .attr("stroke", "#fff")
-    .attr("stroke-width", 2);
+    arcs.append("path")
+        .attr("d", arc)
+        .attr("fill", d => color(d.data.category))
+        .attr("stroke", "var(--bg-color)")
+        .attr("stroke-width", 2);
 
-arcs.append("text")
-    .attr("transform", d => `translate(${arc.centroid(d)})`)
-    .attr("text-anchor", "middle")
-    .attr("font-size", "12px")
-    .attr("fill", "white")
-    .text(d => d.data.visits);
+    arcs.append("text")
+        .attr("transform", d => `translate(${arc.centroid(d)})`)
+        .attr("text-anchor", "middle")
+        .attr("font-size", "12px")
+        .attr("fill", "white")
+        .text(d => d.data.visits);
+        
+    // Legend
+    const legend = categoryG.selectAll(".legend")
+        .data(categoryDataArray)
+        .enter().append("g")
+        .attr("class", "legend")
+        .attr("transform", (d, i) => `translate(150, ${-120 + i * 20})`);
+        
+    legend.append("rect")
+        .attr("width", 15)
+        .attr("height", 15)
+        .attr("fill", d => color(d.category));
+        
+    legend.append("text")
+        .attr("x", 20)
+        .attr("y", 12)
+        .attr("font-size", "11px")
+        .attr("fill", "var(--text-color)")
+        .text(d => d.category);
+}
 
-// Real-time updates simulation
+// Refresh analytics periodically
 setInterval(() => {
-    // Simulate live updates
-    const currentVisits = parseInt(document.getElementById('currentVisits').textContent);
-    const currentVisitors = parseInt(document.getElementById('currentVisitors').textContent);
-    
-    // Random small increments
-    const newVisits = currentVisits + Math.floor(Math.random() * 3);
-    const newVisitors = currentVisitors + Math.floor(Math.random() * 2);
-    
-    document.getElementById('currentVisits').textContent = newVisits;
-    document.getElementById('currentVisitors').textContent = newVisitors;
-    
-    // Flash the live indicator
-    const indicator = document.getElementById('liveIndicator');
-    indicator.style.opacity = '0.5';
-    setTimeout(() => {
-        indicator.style.opacity = '1';
-    }, 200);
-}, 30000);
+    // Reload the page to get fresh data
+    window.location.reload();
+}, 60000); // Refresh every minute
 </script>
 {% endblock %}
 

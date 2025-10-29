@@ -258,18 +258,40 @@ class LocalStorageManager {
     }
     
     updateNavbarCounts() {
-        // Update favorites count
-        const favoritesCountSpan = document.querySelector('.favorites-count');
-        if (favoritesCountSpan) {
-            const favorites = this.getFavorites();
-            favoritesCountSpan.textContent = favorites.length;
+        // Only update from localStorage for anonymous users
+        // Logged-in users' counts come from server and are updated via API responses
+        if (!this.isLoggedIn) {
+            // Update favorites count
+            const favoritesCountSpan = document.querySelector('.favorites-count');
+            if (favoritesCountSpan) {
+                const favorites = this.getFavorites();
+                favoritesCountSpan.textContent = favorites.length;
+            }
+            
+            // Update visited count
+            const visitedCountSpan = document.querySelector('.visited-count');
+            if (visitedCountSpan) {
+                const visited = this.getVisited();
+                visitedCountSpan.textContent = visited.length;
+            }
         }
-        
-        // Update visited count
-        const visitedCountSpan = document.querySelector('.visited-count');
-        if (visitedCountSpan) {
-            const visited = this.getVisited();
-            visitedCountSpan.textContent = visited.length;
+    }
+    
+    incrementNavbarCount(type) {
+        // Increment navbar count by 1 (for logged-in users after API success)
+        const countSpan = document.querySelector(type === 'favorite' ? '.favorites-count' : '.visited-count');
+        if (countSpan) {
+            const currentCount = parseInt(countSpan.textContent) || 0;
+            countSpan.textContent = currentCount + 1;
+        }
+    }
+    
+    decrementNavbarCount(type) {
+        // Decrement navbar count by 1 (for logged-in users after API success)
+        const countSpan = document.querySelector(type === 'favorite' ? '.favorites-count' : '.visited-count');
+        if (countSpan) {
+            const currentCount = parseInt(countSpan.textContent) || 0;
+            countSpan.textContent = Math.max(0, currentCount - 1);
         }
     }
 
@@ -483,9 +505,17 @@ async function toggleFavoriteAPI(posterId) {
             localStorageManager.updateFavoriteButton(posterId);
             showToast(localStorageManager.isFavorite(posterId) ? 'Added to favorites!' : 'Removed from favorites!', localStorageManager.isFavorite(posterId) ? 'success' : 'info');
         } else {
-            // Handle server response
+            // Handle server response for logged-in user
             localStorageManager.updateFavoriteButton(posterId);
-            showToast(data.status === 'added' ? 'Added to favorites!' : 'Removed from favorites!', data.status === 'added' ? 'success' : 'info');
+            
+            // Update navbar count for logged-in users
+            if (data.status === 'added') {
+                localStorageManager.incrementNavbarCount('favorite');
+                showToast('Added to favorites!', 'success');
+            } else if (data.status === 'removed') {
+                localStorageManager.decrementNavbarCount('favorite');
+                showToast('Removed from favorites!', 'info');
+            }
         }
     } catch (error) {
         hideLoading(btn, originalText);
@@ -531,9 +561,16 @@ async function markVisitedAPI(posterId) {
             localStorageManager.updateVisitedButton(posterId);
             showToast('Marked as visited!', 'success');
         } else {
-            // Handle server response
+            // Handle server response for logged-in user
             localStorageManager.updateVisitedButton(posterId);
-            showToast(data.status === 'success' ? 'Marked as visited!' : (data.message || 'Info'), data.status === 'success' ? 'success' : 'info');
+            
+            // Update navbar count for logged-in users
+            if (data.status === 'success') {
+                localStorageManager.incrementNavbarCount('visited');
+                showToast('Marked as visited!', 'success');
+            } else {
+                showToast(data.message || 'Already marked as visited', 'info');
+            }
         }
     } catch (error) {
         hideLoading(btn, originalText);

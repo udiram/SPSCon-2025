@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
-from models import db, User, Poster, Favorite, Visit, PresenterStatus
+from models import db, User, Poster, Favorite, Visit, PresenterStatus, UserProfile, UserQuery, RecommendationCache, UserSettings
 from config import Config
 import json
 from datetime import datetime
@@ -36,6 +36,31 @@ def create_app():
     def load_user(user_id):
         return db.session.get(User, int(user_id))
     
+    # Context processor for navbar counts
+    @app.context_processor
+    def inject_navbar_counts():
+        """Inject favorites and visited counts into all templates"""
+        favorites_count = 0
+        visited_count = 0
+        
+        if current_user.is_authenticated:
+            favorites_count = Favorite.query.filter_by(user_id=current_user.id).count()
+            visited_count = Visit.query.filter_by(user_id=current_user.id).count()
+        
+        return {
+            'favorites_count': favorites_count,
+            'visited_count': visited_count
+        }
+    
+    # Helper functions
+    def get_poster_visit_counts():
+        """Get visit counts for all posters"""
+        visit_counts = db.session.query(
+            Visit.poster_id, 
+            db.func.count(Visit.id).label('visit_count')
+        ).group_by(Visit.poster_id).all()
+        return {poster_id: count for poster_id, count in visit_counts}
+    
     # Routes
     @app.route('/health')
     def health_check():
@@ -52,6 +77,7 @@ def create_app():
         # Get statistics for dashboard (available to everyone)
         total_posters = Poster.query.count()
         total_users = User.query.count()
+        visit_counts = get_poster_visit_counts()
         total_visits = Visit.query.count()
         
         # Get category distribution
@@ -71,6 +97,7 @@ def create_app():
                              total_posters=total_posters,
                              total_users=total_users,
                              total_visits=total_visits,
+                             visit_counts=visit_counts,
                              categories=categories,
                              institutions=institutions,
                              total_institutions=total_institutions)
@@ -175,6 +202,9 @@ def create_app():
             available_poster_ids = [ps.poster_id for ps in PresenterStatus.query.filter_by(is_available=True).all()]
             posters = [p for p in posters if p.id in available_poster_ids]
         
+        # Get visitor counts
+        visit_counts = get_poster_visit_counts()
+        
         return render_template('search_results.html', 
                              posters=posters,
                              query=query,
@@ -182,7 +212,8 @@ def create_app():
                              session_filter=session_filter,
                              institution=institution,
                              available_only=available_only,
-                             institutions=institutions)
+                             institutions=institutions,
+                             visit_counts=visit_counts)
 
     @app.route('/institutions')
     def institutions_list():
@@ -231,13 +262,19 @@ def create_app():
         all_posters = Poster.query.all()
         similar_posters = get_similar_posters(poster, all_posters, limit=5)
         
+        # Get visitor counts
+        visit_counts = get_poster_visit_counts()
+        visit_count = visit_counts.get(poster_id, 0)
+        
         return render_template('poster_detail.html',
                              poster=poster,
                              is_favorited=is_favorited,
                              has_visited=has_visited,
                              is_available=is_available,
                              can_manage=can_manage,
-                             similar_posters=similar_posters)
+                             similar_posters=similar_posters,
+                             visit_counts=visit_counts,
+                             visit_count=visit_count)
     
     @app.route('/visited')
     def visited():
@@ -270,8 +307,13 @@ def create_app():
         total_visits = Visit.query.count()
         unique_visitors = db.session.query(Visit.user_id).distinct().count()
         
-        # Most visited posters
-        most_visited = db.session.query(Visit.poster_id, db.func.count(Visit.id).label('visit_count')).group_by(Visit.poster_id).order_by(db.func.count(Visit.id).desc()).limit(10).all()
+        # Most visited posters (top 10)
+        most_visited = db.session.query(
+            Visit.poster_id, 
+            db.func.count(Visit.id).label('visit_count')
+        ).group_by(Visit.poster_id).order_by(
+            db.func.count(Visit.id).desc()
+        ).limit(10).all()
         
         most_visited_posters = []
         for poster_id, visit_count in most_visited:
@@ -279,15 +321,72 @@ def create_app():
             if poster:
                 most_visited_posters.append((poster, visit_count))
         
-        # Institution engagement
-        institution_engagement = db.session.query(Poster.institution, db.func.count(Visit.id).label('visits')).join(Visit).group_by(Poster.institution).order_by(db.func.count(Visit.id).desc()).limit(10).all()
+        # Institution engagement (top 10)
+        institution_engagement = db.session.query(
+            Poster.institution, 
+            db.func.count(Visit.id).label('visits')
+        ).join(Visit).group_by(
+            Poster.institution
+        ).order_by(
+            db.func.count(Visit.id).desc()
+        ).limit(10).all()
         institution_engagement = [(row[0], row[1]) for row in institution_engagement]
+        
+        # Category breakdown
+        category_engagement = {}
+        for poster in Poster.query.all():
+            cat_name = poster.get_category_name()
+            visit_count = Visit.query.filter_by(poster_id=poster.id).count()
+            if cat_name not in category_engagement:
+                category_engagement[cat_name] = 0
+            category_engagement[cat_name] += visit_count
+        
+        # Session breakdown
+        session_visits = db.session.query(
+            Poster.session,
+            db.func.count(Visit.id).label('visits')
+        ).join(Visit).group_by(Poster.session).all()
+        session_breakdown = {session: visits for session, visits in session_visits}
+        
+        # Recent activity (last 20 visits)
+        recent_visits = Visit.query.order_by(Visit.visited_at.desc()).limit(20).all()
+        recent_activity = []
+        for visit in recent_visits:
+            poster = db.session.get(Poster, visit.poster_id)
+            user = db.session.get(User, visit.user_id) if visit.user_id else None
+            if poster:
+                recent_activity.append({
+                    'poster': poster,
+                    'user': user,
+                    'timestamp': visit.visited_at
+                })
+        
+        # Visit trends (last 7 days, group by day)
+        from datetime import timedelta
+        today = datetime.utcnow().date()
+        visit_trends = []
+        for i in range(6, -1, -1):
+            day = today - timedelta(days=i)
+            day_start = datetime.combine(day, datetime.min.time())
+            day_end = datetime.combine(day, datetime.max.time())
+            count = Visit.query.filter(
+                Visit.visited_at >= day_start,
+                Visit.visited_at <= day_end
+            ).count()
+            visit_trends.append({
+                'date': day.strftime('%m/%d'),
+                'count': count
+            })
         
         return render_template('analytics.html',
                              total_visits=total_visits,
                              unique_visitors=unique_visitors,
                              most_visited_posters=most_visited_posters,
-                             institution_engagement=institution_engagement)
+                             institution_engagement=institution_engagement,
+                             category_engagement=category_engagement,
+                             session_breakdown=session_breakdown,
+                             recent_activity=recent_activity,
+                             visit_trends=visit_trends)
     
     # API Routes
     @app.route('/api/favorite/<int:poster_id>', methods=['POST'])
@@ -565,6 +664,304 @@ def create_app():
             'Content-Type': 'text/csv',
             'Content-Disposition': f'attachment; filename=spscon_posters_{datetime.now().strftime("%Y%m%d")}.csv'
         }
+
+    # Recommendation Routes
+    @app.route('/recommendations')
+    def recommendations():
+        """Main recommendations page"""
+        return render_template('recommendations.html')
+    
+    @app.route('/api/recommend/query', methods=['POST'])
+    def recommend_from_query():
+        """Process natural language query and return recommendations"""
+        if not current_user.is_authenticated:
+            return jsonify({'status': 'error', 'message': 'Please log in to use recommendations'}), 401
+        
+        data = request.get_json()
+        query_text = data.get('query', '').strip()
+        
+        if not query_text:
+            return jsonify({'status': 'error', 'message': 'Query is required'}), 400
+        
+        try:
+            from utils.groq_client import GroqClient
+            from utils.recommendation_engine import ProfileBuilder, RecommendationGenerator, UserSimilarityCalculator
+            
+            groq_client = GroqClient()
+            profile_builder = ProfileBuilder(current_user)
+            
+            # Update profile with query insights
+            profile = profile_builder.update_profile_from_query(query_text, groq_client)
+            
+            # Generate recommendations
+            all_posters = Poster.query.all()
+            rec_generator = RecommendationGenerator(groq_client)
+            poster_recommendations = rec_generator.generate_poster_recommendations(
+                profile, 
+                all_posters,
+                limit=20,
+                exclude_visited=True
+            )
+            
+            # Format poster recommendations
+            formatted_posters = []
+            for rec in poster_recommendations:
+                poster = rec['poster']
+                # Parse tags
+                tags = []
+                if poster.tags:
+                    try:
+                        tags = json.loads(poster.tags) if isinstance(poster.tags, str) else poster.tags
+                    except:
+                        tags = []
+                
+                formatted_posters.append({
+                    'id': poster.id,
+                    'poster_number': poster.poster_number,
+                    'title': poster.title,
+                    'author': f"{poster.first_name} {poster.last_name}",
+                    'institution': poster.institution,
+                    'category': poster.get_category_name(),
+                    'session': poster.session,
+                    'tags': tags,
+                    'score': round(rec['score'], 3),
+                    'reasons': rec['reasons'],
+                    'url': url_for('poster_detail', poster_id=poster.id)
+                })
+            
+            # Get user recommendations
+            all_users = User.query.filter(User.id != current_user.id).all()
+            user_calculator = UserSimilarityCalculator()
+            user_recommendations = user_calculator.calculate_similarities(
+                current_user,
+                profile,
+                all_users,
+                limit=10
+            )
+            
+            # Format user recommendations
+            formatted_users = []
+            for rec in user_recommendations:
+                user = rec['user']
+                formatted_users.append({
+                    'id': user.id,
+                    'username': user.username,
+                    'full_name': user.get_full_name(),
+                    'score': round(rec['score'], 3),
+                    'shared_posters': rec['shared_posters'],
+                    'shared_categories': rec['categories']
+                })
+            
+            return jsonify({
+                'status': 'success',
+                'posters': formatted_posters,
+                'users': formatted_users,
+                'profile_updated': True
+            })
+            
+        except Exception as e:
+            print(f"Recommendation error: {e}")
+            return jsonify({'status': 'error', 'message': str(e)}), 500
+    
+    @app.route('/api/recommend/posters')
+    @login_required
+    def get_poster_recommendations():
+        """Get poster recommendations based on current profile"""
+        try:
+            from utils.groq_client import GroqClient
+            from utils.recommendation_engine import ProfileBuilder, RecommendationGenerator
+            
+            groq_client = GroqClient()
+            profile_builder = ProfileBuilder(current_user)
+            profile = profile_builder.get_or_build_profile()
+            
+            all_posters = Poster.query.all()
+            rec_generator = RecommendationGenerator(groq_client)
+            recommendations = rec_generator.generate_poster_recommendations(
+                profile,
+                all_posters,
+                limit=20,
+                exclude_visited=True
+            )
+            
+            formatted = []
+            for rec in recommendations:
+                poster = rec['poster']
+                # Parse tags
+                tags = []
+                if poster.tags:
+                    try:
+                        tags = json.loads(poster.tags) if isinstance(poster.tags, str) else poster.tags
+                    except:
+                        tags = []
+                
+                formatted.append({
+                    'id': poster.id,
+                    'poster_number': poster.poster_number,
+                    'title': poster.title,
+                    'author': f"{poster.first_name} {poster.last_name}",
+                    'institution': poster.institution,
+                    'category': poster.get_category_name(),
+                    'session': poster.session,
+                    'tags': tags,
+                    'score': round(rec['score'], 3),
+                    'reasons': rec['reasons'],
+                    'url': url_for('poster_detail', poster_id=poster.id)
+                })
+            
+            return jsonify({
+                'status': 'success',
+                'posters': formatted
+            })
+            
+        except Exception as e:
+            print(f"Recommendation error: {e}")
+            return jsonify({'status': 'error', 'message': str(e)}), 500
+    
+    @app.route('/api/recommend/users')
+    @login_required
+    def get_user_recommendations():
+        """Get similar user recommendations"""
+        try:
+            from utils.groq_client import GroqClient
+            from utils.recommendation_engine import ProfileBuilder, UserSimilarityCalculator
+            
+            groq_client = GroqClient()
+            profile_builder = ProfileBuilder(current_user)
+            profile = profile_builder.get_or_build_profile()
+            
+            all_users = User.query.filter(User.id != current_user.id).all()
+            user_calculator = UserSimilarityCalculator()
+            recommendations = user_calculator.calculate_similarities(
+                current_user,
+                profile,
+                all_users,
+                limit=10
+            )
+            
+            formatted = []
+            for rec in recommendations:
+                user = rec['user']
+                formatted.append({
+                    'id': user.id,
+                    'username': user.username,
+                    'full_name': user.get_full_name(),
+                    'score': round(rec['score'], 3),
+                    'shared_posters': rec['shared_posters'],
+                    'shared_categories': rec['categories']
+                })
+            
+            return jsonify({
+                'status': 'success',
+                'users': formatted
+            })
+            
+        except Exception as e:
+            print(f"User recommendation error: {e}")
+            return jsonify({'status': 'error', 'message': str(e)}), 500
+    
+    @app.route('/api/profile')
+    @login_required
+    def get_profile():
+        """Get current user profile summary"""
+        try:
+            from utils.recommendation_engine import ProfileBuilder
+            
+            profile_builder = ProfileBuilder(current_user)
+            profile = profile_builder.get_or_build_profile()
+            
+            # Return summary without sensitive details
+            return jsonify({
+                'status': 'success',
+                'profile': {
+                    'interests': profile.get('interests', [])[:10],
+                    'categories': profile.get('categories', []),
+                    'top_tags': profile.get('top_tags', [])[:10],
+                    'favorite_count': profile.get('favorite_count', 0),
+                    'visit_count': profile.get('visit_count', 0),
+                    'experience_level': profile.get('experience_level')
+                }
+            })
+            
+        except Exception as e:
+            print(f"Profile error: {e}")
+            return jsonify({'status': 'error', 'message': str(e)}), 500
+
+    # Settings Routes
+    @app.route('/settings')
+    @login_required
+    def settings_page():
+        """User settings page"""
+        return render_template('settings.html')
+    
+    @app.route('/api/settings', methods=['GET'])
+    @login_required
+    def get_settings():
+        """Get current user settings"""
+        try:
+            user_settings = UserSettings.query.filter_by(user_id=current_user.id).first()
+            
+            if not user_settings:
+                # Create default settings
+                user_settings = UserSettings(user_id=current_user.id)
+                db.session.add(user_settings)
+                db.session.commit()
+            
+            return jsonify({
+                'status': 'success',
+                'settings': user_settings.to_dict()
+            })
+        except Exception as e:
+            print(f"Get settings error: {e}")
+            return jsonify({'status': 'error', 'message': str(e)}), 500
+    
+    @app.route('/api/settings', methods=['POST'])
+    @login_required
+    def update_settings():
+        """Update user settings"""
+        try:
+            data = request.get_json()
+            
+            user_settings = UserSettings.query.filter_by(user_id=current_user.id).first()
+            
+            if not user_settings:
+                user_settings = UserSettings(user_id=current_user.id)
+                db.session.add(user_settings)
+            
+            # Update settings
+            if 'dark_mode' in data:
+                user_settings.dark_mode = data['dark_mode']
+            if 'compact_view' in data:
+                user_settings.compact_view = data['compact_view']
+            if 'font_size' in data:
+                user_settings.font_size = data['font_size']
+            if 'high_contrast' in data:
+                user_settings.high_contrast = data['high_contrast']
+            if 'reduce_animations' in data:
+                user_settings.reduce_animations = data['reduce_animations']
+            if 'email_notifications' in data:
+                user_settings.email_notifications = data['email_notifications']
+            if 'profile_visible' in data:
+                user_settings.profile_visible = data['profile_visible']
+            if 'show_activity' in data:
+                user_settings.show_activity = data['show_activity']
+            if 'exclude_visited_recommendations' in data:
+                user_settings.exclude_visited_recommendations = data['exclude_visited_recommendations']
+            if 'recommendations_count' in data:
+                user_settings.recommendations_count = data['recommendations_count']
+            
+            user_settings.updated_at = datetime.utcnow()
+            db.session.commit()
+            
+            return jsonify({
+                'status': 'success',
+                'message': 'Settings updated successfully',
+                'settings': user_settings.to_dict()
+            })
+        except Exception as e:
+            print(f"Update settings error: {e}")
+            db.session.rollback()
+            return jsonify({'status': 'error', 'message': str(e)}), 500
 
     # Admin Routes
     @app.route('/admin')

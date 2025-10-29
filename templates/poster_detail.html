@@ -11,7 +11,10 @@
                     <h4><i class="bi bi-file-post"></i> Poster #{{ poster.poster_number }}</h4>
                     <div>
                         <span class="badge bg-info me-2">Session {{ poster.session }}</span>
-                        <span class="badge bg-secondary">{{ poster.get_category_name() }}</span>
+                        <span class="badge bg-secondary me-2">{{ poster.get_category_name() }}</span>
+                        <span class="badge bg-dark" title="Total registered visits">
+                            <i class="bi bi-eye-fill"></i> {{ visit_count }} visits
+                        </span>
                     </div>
                 </div>
             </div>
@@ -28,7 +31,7 @@
                         {% if is_favorited %}Remove from Favorites{% else %}Add to Favorites{% endif %}
                     </button>
                     
-                    <button class="btn btn-outline-success visit-btn" onclick="markVisitedAPI({{ poster.id }})" id="visitBtn{{ poster.id }}" data-poster-id="{{ poster.id }}">
+                    <button class="btn {% if has_visited %}btn-success{% else %}btn-outline-success{% endif %} visit-btn" onclick="markVisitedAPI({{ poster.id }})" id="visitBtn{{ poster.id }}" data-poster-id="{{ poster.id }}">
                         <i class="bi bi-check-circle"></i>
                         {% if has_visited %}Visited{% else %}Mark as Visited{% endif %}
                     </button>
@@ -151,97 +154,8 @@
 
 {% block extra_js %}
 <script>
-// Simple, direct functions that work immediately
-function toggleFavoriteAPI(posterId) {
-    console.log('toggleFavoriteAPI called for poster:', posterId);
-    
-    const favorites = JSON.parse(localStorage.getItem('spscon_favorites') || '[]');
-    const index = favorites.indexOf(posterId);
-    
-    if (index > -1) {
-        favorites.splice(index, 1);
-        showToast('Removed from favorites!', 'info');
-    } else {
-        favorites.push(posterId);
-        showToast('Added to favorites!', 'success');
-    }
-    
-    localStorage.setItem('spscon_favorites', JSON.stringify(favorites));
-    updateFavoriteButton(posterId);
-    updateNavbarCounts(); // Update navbar badge counts immediately
-}
-
-function markVisitedAPI(posterId) {
-    console.log('markVisitedAPI called for poster:', posterId);
-    
-    const visited = JSON.parse(localStorage.getItem('spscon_visited') || '[]');
-    const idx = visited.indexOf(posterId);
-    if (idx === -1) {
-        // Mark visited
-        visited.push(posterId);
-        localStorage.setItem('spscon_visited', JSON.stringify(visited));
-        updateVisitedButton(posterId);
-        updateNavbarCounts(); // Update navbar badge counts immediately
-        showToast('Marked as visited!', 'success');
-    } else {
-        // Unmark visited (toggle off)
-        visited.splice(idx, 1);
-        localStorage.setItem('spscon_visited', JSON.stringify(visited));
-        updateVisitedButton(posterId);
-        updateNavbarCounts(); // Update navbar badge counts immediately
-        showToast('Unmarked as visited', 'info');
-    }
-}
-
-function updateFavoriteButton(posterId) {
-    const btn = document.getElementById(`favoriteBtn${posterId}`);
-    if (!btn) return;
-    
-    const favorites = JSON.parse(localStorage.getItem('spscon_favorites') || '[]');
-    const isFavorite = favorites.includes(posterId);
-    
-    if (isFavorite) {
-        btn.innerHTML = '<i class="bi bi-heart-fill"></i> Remove from Favorites';
-        btn.classList.add('favorited');
-    } else {
-        btn.innerHTML = '<i class="bi bi-heart"></i> Add to Favorites';
-        btn.classList.remove('favorited');
-    }
-}
-
-function updateVisitedButton(posterId) {
-    const btn = document.getElementById(`visitBtn${posterId}`);
-    if (!btn) return;
-    
-    const visited = JSON.parse(localStorage.getItem('spscon_visited') || '[]');
-    const isVisited = visited.includes(posterId);
-    
-    if (isVisited) {
-        btn.innerHTML = '<i class="bi bi-check-circle"></i> Visited';
-        btn.classList.add('btn-success');
-        btn.classList.remove('btn-outline-success');
-    } else {
-        btn.innerHTML = '<i class="bi bi-check-circle"></i> Mark as Visited';
-        btn.classList.remove('btn-success');
-        btn.classList.add('btn-outline-success');
-    }
-}
-
-function updateNavbarCounts() {
-    // Update favorites count
-    const favoritesCountSpan = document.querySelector('.favorites-count');
-    if (favoritesCountSpan) {
-        const favorites = JSON.parse(localStorage.getItem('spscon_favorites') || '[]');
-        favoritesCountSpan.textContent = favorites.length;
-    }
-    
-    // Update visited count
-    const visitedCountSpan = document.querySelector('.visited-count');
-    if (visitedCountSpan) {
-        const visited = JSON.parse(localStorage.getItem('spscon_visited') || '[]');
-        visitedCountSpan.textContent = visited.length;
-    }
-}
+// Note: toggleFavoriteAPI and markVisitedAPI are defined in local-storage.js
+// and handle both logged-in and anonymous users correctly
 
 function togglePresenterStatus(posterId) {
     const btn = document.getElementById(`statusBtn${posterId}`);
@@ -284,12 +198,18 @@ function togglePresenterStatus(posterId) {
     });
 }
 
-// Initialize button states and navbar counts on page load
+// Initialize button states on page load (for anonymous users only)
 document.addEventListener('DOMContentLoaded', function() {
     const posterId = {{ poster.id }};
-    updateFavoriteButton(posterId);
-    updateVisitedButton(posterId);
-    updateNavbarCounts(); // Initialize navbar counts
+    
+    // Only initialize from localStorage for anonymous users
+    // Logged-in users' button states are already correct from server rendering
+    if (document.body.classList.contains('user-anonymous')) {
+        if (localStorageManager) {
+            localStorageManager.updateFavoriteButton(posterId);
+            localStorageManager.updateVisitedButton(posterId);
+        }
+    }
 });
 
 // Poll for status updates every 30 seconds

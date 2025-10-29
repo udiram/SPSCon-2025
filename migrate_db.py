@@ -43,7 +43,7 @@ def check_schema_version():
             tables = inspector.get_table_names()
             
             # Expected tables
-            expected_tables = {'user', 'poster', 'favorite', 'visit', 'presenter_status'}
+            expected_tables = {'user', 'poster', 'favorite', 'visit', 'presenter_status', 'user_profile', 'user_query', 'recommendation_cache', 'user_settings'}
             missing_tables = expected_tables - set(tables)
             
             if missing_tables:
