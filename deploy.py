@@ -50,41 +50,62 @@ def create_default_admin():
     
     with app.app_context():
         try:
+            print("Checking for admin user...")
+            
             # Check if admin user already exists
             admin = User.query.filter_by(username='admin').first()
             
             if admin:
-                # Admin exists, just make sure is_admin is True
-                if not admin.is_admin:
-                    admin.is_admin = True
-                    db.session.commit()
-                    print("✅ Updated existing 'admin' user to have admin privileges")
+                print(f"   Found existing admin: {admin.email}")
+                # Admin exists, ALWAYS reset password to ensure it's correct
+                print("   Resetting password to default...")
+                admin.set_password('Admin97034122!')
+                db.session.commit()
+                
+                # Verify password was set correctly
+                if admin.check_password('Admin97034122!'):
+                    print("✅ Admin user password VERIFIED and working!")
+                    print(f"   Username: admin")
+                    print(f"   Password: Admin97034122!")
+                    print(f"   Email: {admin.email}")
+                    print(f"   Is Admin: {admin.is_admin}")
+                    print(f"   Login at: /login")
+                    return True
                 else:
-                    print("ℹ️  Admin user already exists and has admin privileges")
-                return True
+                    print("❌ Password verification failed!")
+                    return False
             
             # Create new admin user
-            print("👤 Creating default admin user...")
+            print("   No admin found, creating new one...")
             admin = User(
-                username='admin',
+                username='admin',  # This makes is_admin property return True
                 email='admin@spscon2025.com',
                 first_name='System',
-                last_name='Administrator',
-                is_admin=True
+                last_name='Administrator'
             )
             admin.set_password('Admin97034122!')
             
             db.session.add(admin)
             db.session.commit()
             
-            print("✅ Default admin user created successfully!")
-            print("   Username: admin")
-            print("   Password: Admin97034122!")
-            print("   Access admin panel at: /admin")
-            return True
+            # Verify new admin works
+            admin = User.query.filter_by(username='admin').first()
+            if admin and admin.check_password('Admin97034122!'):
+                print("✅ New admin user created and VERIFIED!")
+                print(f"   Username: admin")
+                print(f"   Password: Admin97034122!")
+                print(f"   Email: {admin.email}")
+                print(f"   Is Admin: {admin.is_admin}")
+                print(f"   Login at: /login")
+                return True
+            else:
+                print("❌ Admin created but verification failed!")
+                return False
             
         except Exception as e:
-            print(f"❌ Error creating admin user: {e}")
+            print(f"❌ Error with admin user: {e}")
+            import traceback
+            traceback.print_exc()
             db.session.rollback()
             return False
 
@@ -443,8 +464,10 @@ def migrate_database():
             
             # Create/update default admin user (always at the end)
             print("\n👤 Setting up admin user...")
+            print("=" * 50)
             if not create_default_admin():
                 print("⚠️  Failed to create admin user, but migration continues")
+            print("=" * 50)
             
             print("✅ Database migration completed successfully")
             return True
