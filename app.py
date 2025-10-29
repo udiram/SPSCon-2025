@@ -1,12 +1,24 @@
-from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session
+from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session, abort
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from models import db, User, Poster, Favorite, Visit, PresenterStatus, UserProfile, UserQuery, RecommendationCache, UserSettings, ChangeRequest
 from config import Config
+from functools import wraps
 import json
 from datetime import datetime
 import csv
 import io
 import os
+
+def admin_required(f):
+    """Decorator to require admin privileges"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_authenticated:
+            return redirect(url_for('login'))
+        if not current_user.is_admin:
+            abort(403)  # Forbidden
+        return f(*args, **kwargs)
+    return decorated_function
 
 def create_app():
     app = Flask(__name__)
@@ -965,16 +977,155 @@ def create_app():
             print(f"Update settings error: {e}")
             db.session.rollback()
             return jsonify({'status': 'error', 'message': str(e)}), 500
+    
+    # Change Request APIs
+    @app.route('/api/change-request', methods=['POST'])
+    @login_required
+    def submit_change_request():
+        """Submit a change request"""
+        try:
+            data = request.get_json()
+            
+            change_request = ChangeRequest(
+                user_id=current_user.id,
+                request_type=data.get('request_type'),
+                field_name=data.get('field_name'),
+                current_value=data.get('current_value'),
+                proposed_value=data.get('proposed_value'),
+                reason=data.get('reason'),
+                status='pending'
+            )
+            
+            db.session.add(change_request)
+            db.session.commit()
+            
+            return jsonify({
+                'status': 'success',
+                'message': 'Change request submitted successfully',
+                'request_id': change_request.id
+            })
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'status': 'error', 'message': str(e)}), 500
+    
+    @app.route('/api/change-requests', methods=['GET'])
+    @login_required
+    def get_user_change_requests():
+        """Get current user's change requests"""
+        try:
+            requests = ChangeRequest.query.filter_by(user_id=current_user.id).order_by(
+                ChangeRequest.created_at.desc()
+            ).all()
+            
+            return jsonify({
+                'status': 'success',
+                'requests': [req.to_dict() for req in requests]
+            })
+        except Exception as e:
+            return jsonify({'status': 'error', 'message': str(e)}), 500
+    
+    @app.route('/api/admin/change-requests', methods=['GET'])
+    @admin_required
+    def get_all_change_requests():
+        """Get all change requests (admin only)"""
+        
+        try:
+            status_filter = request.args.get('status', 'pending')
+            query = ChangeRequest.query
+            
+            if status_filter != 'all':
+                query = query.filter_by(status=status_filter)
+            
+            requests = query.order_by(ChangeRequest.created_at.desc()).all()
+            
+            return jsonify({
+                'status': 'success',
+                'requests': [req.to_dict() for req in requests]
+            })
+        except Exception as e:
+            return jsonify({'status': 'error', 'message': str(e)}), 500
+    
+    @app.route('/api/admin/change-request/<int:request_id>/approve', methods=['POST'])
+    @admin_required
+    def approve_change_request(request_id):
+        """Approve a change request and apply the changes (admin only)"""
+        
+        try:
+            change_req = db.session.get(ChangeRequest, request_id)
+            if not change_req:
+                return jsonify({'status': 'error', 'message': 'Request not found'}), 404
+            
+            # Get the user whose data needs to be changed
+            user = db.session.get(User, change_req.user_id)
+            if not user:
+                return jsonify({'status': 'error', 'message': 'User not found'}), 404
+            
+            # Apply the change
+            field_name = change_req.field_name
+            new_value = change_req.proposed_value
+            
+            if hasattr(user, field_name):
+                setattr(user, field_name, new_value)
+            else:
+                return jsonify({'status': 'error', 'message': f'Invalid field: {field_name}'}), 400
+            
+            # Update request status
+            change_req.status = 'approved'
+            change_req.reviewed_by = current_user.id
+            change_req.reviewed_at = datetime.utcnow()
+            
+            # Get admin notes from request body if provided
+            data = request.get_json() or {}
+            if 'admin_notes' in data:
+                change_req.admin_notes = data['admin_notes']
+            
+            db.session.commit()
+            
+            return jsonify({
+                'status': 'success',
+                'message': 'Change request approved and applied',
+                'request': change_req.to_dict()
+            })
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'status': 'error', 'message': str(e)}), 500
+    
+    @app.route('/api/admin/change-request/<int:request_id>/deny', methods=['POST'])
+    @admin_required
+    def deny_change_request(request_id):
+        """Deny a change request (admin only)"""
+        
+        try:
+            change_req = db.session.get(ChangeRequest, request_id)
+            if not change_req:
+                return jsonify({'status': 'error', 'message': 'Request not found'}), 404
+            
+            # Update request status
+            change_req.status = 'denied'
+            change_req.reviewed_by = current_user.id
+            change_req.reviewed_at = datetime.utcnow()
+            
+            # Get admin notes from request body
+            data = request.get_json() or {}
+            if 'admin_notes' in data:
+                change_req.admin_notes = data['admin_notes']
+            
+            db.session.commit()
+            
+            return jsonify({
+                'status': 'success',
+                'message': 'Change request denied',
+                'request': change_req.to_dict()
+            })
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'status': 'error', 'message': str(e)}), 500
 
     # Admin Routes
     @app.route('/admin')
-    @login_required
+    @admin_required
     def admin_panel():
         """Admin panel for managing presenter assignments"""
-        # Simple admin check - you can make this more sophisticated
-        if current_user.username != 'admin':
-            from flask import abort
-            abort(403)
         
         # Get all posters with their assignments
         posters = Poster.query.order_by(Poster.poster_number).all()
@@ -985,12 +1136,9 @@ def create_app():
         return render_template('admin.html', posters=posters, users=users)
     
     @app.route('/admin/assign-presenter', methods=['POST'])
-    @login_required
+    @admin_required
     def assign_presenter():
         """Assign a presenter to a poster"""
-        if current_user.username != 'admin':
-            from flask import abort
-            abort(403)
         
         poster_id = request.json.get('poster_id')
         user_id = request.json.get('user_id')
@@ -1028,12 +1176,9 @@ def create_app():
         return render_template('my_posters.html', posters=manageable_posters)
     
     @app.route('/admin/auto-assign', methods=['POST'])
-    @login_required
+    @admin_required
     def auto_assign_presenters():
         """Auto-assign presenters based on name matching"""
-        if current_user.username != 'admin':
-            from flask import abort
-            abort(403)
         
         assigned_count = 0
         
@@ -1064,12 +1209,9 @@ def create_app():
         })
     
     @app.route('/admin/unassign-all', methods=['POST'])
-    @login_required
+    @admin_required
     def unassign_all_presenters():
         """Unassign all presenters from all posters"""
-        if current_user.username != 'admin':
-            from flask import abort
-            abort(403)
         
         Poster.query.update({'presenter_id': None})
         db.session.commit()

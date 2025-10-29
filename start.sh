@@ -10,14 +10,25 @@ else
     echo "⚠️  Local environment detected"
 fi
 
-# Run database migration
-echo "📊 Running database migration..."
+# Run database setup
+echo "📊 Running database setup..."
 python deploy.py
 
 if [ $? -eq 0 ]; then
-    echo "✅ Database migration completed"
+    echo "✅ Database setup completed"
 else
-    echo "❌ Database migration failed"
+    echo "❌ Database setup failed"
+    exit 1
+fi
+
+# Run migrations (safe to run multiple times, only applies new ones)
+echo "🔄 Running database migrations..."
+python migrations.py
+
+if [ $? -eq 0 ]; then
+    echo "✅ Migrations completed"
+else
+    echo "❌ Migrations failed"
     exit 1
 fi
 

@@ -13,6 +13,7 @@ from models import db, User, Poster, Favorite, Visit, PresenterStatus
 from app import create_app
 from seed_data import import_excel_data, check_data_integrity
 from utils.qr_generator import generate_qr_code
+from werkzeug.security import generate_password_hash
 
 def check_environment():
     """Check deployment environment and configuration"""
@@ -42,6 +43,50 @@ def check_environment():
         print("   Secret Key: ⚠️  Using default")
     
     return is_railway
+
+def create_default_admin():
+    """Create default admin user if it doesn't exist"""
+    app = create_app()
+    
+    with app.app_context():
+        try:
+            # Check if admin user already exists
+            admin = User.query.filter_by(username='admin').first()
+            
+            if admin:
+                # Admin exists, just make sure is_admin is True
+                if not admin.is_admin:
+                    admin.is_admin = True
+                    db.session.commit()
+                    print("✅ Updated existing 'admin' user to have admin privileges")
+                else:
+                    print("ℹ️  Admin user already exists and has admin privileges")
+                return True
+            
+            # Create new admin user
+            print("👤 Creating default admin user...")
+            admin = User(
+                username='admin',
+                email='admin@spscon2025.com',
+                first_name='System',
+                last_name='Administrator',
+                is_admin=True
+            )
+            admin.set_password('Admin97034122!')
+            
+            db.session.add(admin)
+            db.session.commit()
+            
+            print("✅ Default admin user created successfully!")
+            print("   Username: admin")
+            print("   Password: Admin97034122!")
+            print("   Access admin panel at: /admin")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Error creating admin user: {e}")
+            db.session.rollback()
+            return False
 
 def update_qr_codes():
     """Update QR codes for all posters with correct domain"""
@@ -144,6 +189,7 @@ def backup_data():
                     'first_name': user.first_name,
                     'last_name': user.last_name,
                     'password_hash': user.password_hash,
+                    'is_admin': getattr(user, 'is_admin', False),
                     'created_at': user.created_at.isoformat() if user.created_at else None
                 })
             
@@ -230,7 +276,8 @@ def restore_data():
                     email=user_data['email'],
                     first_name=user_data['first_name'],
                     last_name=user_data['last_name'],
-                    password_hash=user_data['password_hash']
+                    password_hash=user_data['password_hash'],
+                    is_admin=user_data.get('is_admin', False)
                 )
                 user.id = user_data['id']  # Preserve original ID
                 if user_data.get('created_at'):
@@ -348,6 +395,11 @@ def migrate_database():
                 return False
             
             print(f"✅ All tables created: {current_tables}")
+            
+            # Create default admin user
+            print("\n👤 Setting up admin user...")
+            if not create_default_admin():
+                print("⚠️  Failed to create admin user, but migration continues")
             
             if has_data:
                 print("📥 Restoring data from backup...")
