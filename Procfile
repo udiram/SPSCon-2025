@@ -1,2 +1,2 @@
-web: ./pre_deploy.sh && python app.py
+web: python quick_init.py && python app.py
 
