@@ -1,54 +1,39 @@
 #!/bin/bash
-# Railway startup script
+# Railway startup script - EMERGENCY MODE: Start app FIRST
 
-echo "🚀 Starting SPSCon 2025 deployment..."
+echo "🚀 EMERGENCY START MODE - App starting immediately!"
 
-# Check if we're in Railway environment
-if [ -n "$RAILWAY_ENVIRONMENT" ]; then
-    echo "✅ Railway environment detected"
-else
-    echo "⚠️  Local environment detected"
-fi
-
-# Run database setup with timeout (reduced to 45s to ensure app starts)
-echo "📊 Running database setup (max 45 seconds)..."
-timeout 45 python3 deploy.py 2>&1 &
-DEPLOY_PID=$!
-
-# Wait for deploy or timeout
-wait $DEPLOY_PID 2>/dev/null
-DEPLOY_EXIT=$?
-
-if [ $DEPLOY_EXIT -eq 0 ]; then
-    echo "✅ Database setup completed successfully"
-elif [ $DEPLOY_EXIT -eq 124 ]; then
-    echo "⚠️  Database setup timed out after 45s"
-    echo "   App will start anyway - admin user may need manual creation"
-else
-    echo "⚠️  Database setup had issues (exit code: $DEPLOY_EXIT)"
-    echo "   App will start anyway - check logs above"
-fi
-
-# Run migrations with timeout (safe to run multiple times, only applies new ones)
-echo "🔄 Running database migrations..."
-timeout 30 python3 migrations.py &
-MIGRATE_PID=$!
-
-wait $MIGRATE_PID 2>/dev/null
-MIGRATE_EXIT=$?
-
-if [ $MIGRATE_EXIT -eq 0 ]; then
-    echo "✅ Migrations completed"
-elif [ $MIGRATE_EXIT -eq 124 ]; then
-    echo "⚠️  Migrations timed out after 30s"
-    echo "   Continuing with app startup..."
-else
-    echo "⚠️  Migrations had issues"
-    echo "   Continuing with app startup..."
-fi
-
-# Start the Flask application immediately
+# Start Flask application IMMEDIATELY in background
 echo "🌐 Starting Flask application NOW..."
-echo "🔗 Health check endpoint: /health"
-echo "⏰ App must start within healthcheck window!"
-python3 app.py
+python3 app.py &
+APP_PID=$!
+
+# Give app 5 seconds to start
+sleep 5
+
+# Check if app is running
+if ps -p $APP_PID > /dev/null 2>&1; then
+    echo "✅ App is running! (PID: $APP_PID)"
+    
+    # Now run setup in background (won't block healthcheck)
+    echo "📊 Running database setup in background..."
+    (
+        python3 deploy.py 2>&1
+        echo "✅ Deploy script completed"
+    ) &
+    
+    echo "🔄 Running migrations in background..."
+    (
+        python3 migrations.py 2>&1
+        echo "✅ Migrations completed"
+    ) &
+    
+    echo "✅ Setup scripts running in background"
+    echo "🔗 App responding at /health"
+    
+    # Wait for app process
+    wait $APP_PID
+else
+    echo "❌ App failed to start!"
+    exit 1
+fi
