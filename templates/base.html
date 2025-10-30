@@ -331,6 +331,28 @@
             animation-iteration-count: 1 !important;
             transition-duration: 0.01ms !important;
         }
+        
+        /* Compact view mode */
+        .compact-view .card {
+            margin-bottom: 1rem !important;
+        }
+        .compact-view .card-body {
+            padding: 1rem !important;
+        }
+        .compact-view h5, .compact-view .h5 {
+            font-size: 1rem !important;
+        }
+        .compact-view p {
+            margin-bottom: 0.5rem !important;
+        }
+        .compact-view .btn {
+            padding: 0.25rem 0.5rem !important;
+            font-size: 0.875rem !important;
+        }
+        .compact-view .poster-card {
+            padding: 1rem !important;
+        }
+        
         .favorite-btn.favorited {
             color: #e74c3c;
         }
@@ -938,8 +960,55 @@
                 if (isAnonymous) {
                     syncBadgeCounts();
                 }
+                
+                // Load and apply user settings for logged-in users
+                if (!isAnonymous) {
+                    loadAndApplyUserSettings();
+                }
             } catch { /* ignore */ }
         });
+        
+        // Load and apply user settings
+        function loadAndApplyUserSettings() {
+            fetch('/api/settings')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success' && data.settings) {
+                        applyUserSettings(data.settings);
+                    }
+                })
+                .catch(error => console.log('Settings load error:', error));
+        }
+        
+        // Apply settings to the page
+        function applyUserSettings(settings) {
+            // Font size
+            if (settings.font_size) {
+                const fontSizes = { small: '14px', medium: '16px', large: '18px' };
+                document.documentElement.style.fontSize = fontSizes[settings.font_size] || '16px';
+            }
+            
+            // High contrast
+            if (settings.high_contrast) {
+                document.documentElement.classList.add('high-contrast');
+            } else {
+                document.documentElement.classList.remove('high-contrast');
+            }
+            
+            // Reduce animations
+            if (settings.reduce_animations) {
+                document.documentElement.classList.add('reduce-animations');
+            } else {
+                document.documentElement.classList.remove('reduce-animations');
+            }
+            
+            // Compact view (add class to body if needed)
+            if (settings.compact_view) {
+                document.body.classList.add('compact-view');
+            } else {
+                document.body.classList.remove('compact-view');
+            }
+        }
 
         // CSRF Token for AJAX requests
         function getCSRFToken() {

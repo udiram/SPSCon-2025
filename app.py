@@ -982,6 +982,139 @@ def create_app():
             db.session.rollback()
             return jsonify({'status': 'error', 'message': str(e)}), 500
     
+    # Data Export/Management APIs
+    @app.route('/api/export/data', methods=['GET'])
+    @login_required
+    def export_user_data():
+        """Export all user data"""
+        try:
+            # Gather all user data
+            favorites = Favorite.query.filter_by(user_id=current_user.id).all()
+            visits = Visit.query.filter_by(user_id=current_user.id).all()
+            user_settings = UserSettings.query.filter_by(user_id=current_user.id).first()
+            change_requests = ChangeRequest.query.filter_by(user_id=current_user.id).all()
+            
+            # Build export data
+            export_data = {
+                'user_info': {
+                    'username': current_user.username,
+                    'email': current_user.email,
+                    'first_name': current_user.first_name,
+                    'last_name': current_user.last_name,
+                    'created_at': current_user.created_at.isoformat() if current_user.created_at else None
+                },
+                'favorites': [],
+                'visits': [],
+                'settings': user_settings.to_dict() if user_settings else {},
+                'change_requests': []
+            }
+            
+            # Add favorites
+            for fav in favorites:
+                poster = Poster.query.get(fav.poster_id)
+                if poster:
+                    export_data['favorites'].append({
+                        'poster_id': poster.id,
+                        'title': poster.title,
+                        'authors': poster.authors,
+                        'created_at': fav.created_at.isoformat() if fav.created_at else None
+                    })
+            
+            # Add visits
+            for visit in visits:
+                poster = Poster.query.get(visit.poster_id)
+                if poster:
+                    export_data['visits'].append({
+                        'poster_id': poster.id,
+                        'title': poster.title,
+                        'authors': poster.authors,
+                        'visited_at': visit.visited_at.isoformat() if visit.visited_at else None
+                    })
+            
+            # Add change requests
+            for req in change_requests:
+                export_data['change_requests'].append({
+                    'request_type': req.request_type,
+                    'field_name': req.field_name,
+                    'current_value': req.current_value,
+                    'proposed_value': req.proposed_value,
+                    'reason': req.reason,
+                    'status': req.status,
+                    'created_at': req.created_at.isoformat() if req.created_at else None
+                })
+            
+            # Return as JSON download
+            from flask import make_response
+            import json
+            
+            response = make_response(json.dumps(export_data, indent=2))
+            response.headers['Content-Type'] = 'application/json'
+            response.headers['Content-Disposition'] = f'attachment; filename=spscon_data_{current_user.username}.json'
+            
+            return response
+            
+        except Exception as e:
+            print(f"Export data error: {e}")
+            return jsonify({'status': 'error', 'message': str(e)}), 500
+    
+    @app.route('/api/clear-history', methods=['POST'])
+    @login_required
+    def clear_visit_history():
+        """Clear all visit history for current user"""
+        try:
+            Visit.query.filter_by(user_id=current_user.id).delete()
+            db.session.commit()
+            
+            return jsonify({
+                'status': 'success',
+                'message': 'Visit history cleared successfully'
+            })
+            
+        except Exception as e:
+            print(f"Clear history error: {e}")
+            db.session.rollback()
+            return jsonify({'status': 'error', 'message': str(e)}), 500
+    
+    @app.route('/api/delete-account', methods=['POST'])
+    @login_required
+    def delete_user_account():
+        """Permanently delete user account and all associated data"""
+        try:
+            user_id = current_user.id
+            
+            # Delete all associated data
+            Favorite.query.filter_by(user_id=user_id).delete()
+            Visit.query.filter_by(user_id=user_id).delete()
+            UserSettings.query.filter_by(user_id=user_id).delete()
+            ChangeRequest.query.filter_by(user_id=user_id).delete()
+            
+            # Delete user profile and queries if they exist
+            from models import UserProfile, UserQuery
+            UserProfile.query.filter_by(user_id=user_id).delete()
+            UserQuery.query.filter_by(user_id=user_id).delete()
+            
+            # Delete presenter status if exists
+            PresenterStatus.query.filter_by(user_id=user_id).delete()
+            
+            # Finally, delete the user
+            user = User.query.get(user_id)
+            db.session.delete(user)
+            db.session.commit()
+            
+            # Log out the user
+            from flask_login import logout_user
+            logout_user()
+            
+            return jsonify({
+                'status': 'success',
+                'message': 'Account deleted successfully'
+            })
+            
+        except Exception as e:
+            print(f"Delete account error: {e}")
+            db.session.rollback()
+            return jsonify({'status': 'error', 'message': str(e)}), 500
+    
     # Change Request APIs
     @app.route('/api/change-request', methods=['POST'])
     @login_required
