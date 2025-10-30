@@ -1227,54 +1227,6 @@ def create_app():
     
     return app
 
-def ensure_admin_exists():
-    """Ensure admin user exists - runs on app startup"""
-    try:
-        from models import User
-        admin = User.query.filter_by(username='admin').first()
-        
-        if not admin:
-            print("📝 Creating admin user...")
-            try:
-                admin = User(
-                    username='admin',
-                    email='admin@spscon2025.com',
-                    first_name='System',
-                    last_name='Administrator'
-                )
-                admin.set_password('Admin97034122!')
-                db.session.add(admin)
-                db.session.commit()
-                print("✅ Admin user created")
-            except Exception as e:
-                db.session.rollback()
-                if 'Data too long' in str(e):
-                    print("⚠️  Admin creation skipped: password_hash column needs extension")
-                    print("   Run 'python heavy_setup.py' to fix, then restart")
-                else:
-                    raise
-        else:
-            # Try to verify password works
-            if admin.check_password('Admin97034122!'):
-                print("✅ Admin user verified")
-            else:
-                try:
-                    print("🔄 Resetting admin password...")
-                    admin.set_password('Admin97034122!')
-                    db.session.commit()
-                    print("✅ Admin password reset")
-                except Exception as e:
-                    db.session.rollback()
-                    if 'Data too long' in str(e):
-                        print("⚠️  Password reset skipped: password_hash column needs extension")
-                        print("   Run 'python heavy_setup.py' to fix, then restart")
-                    else:
-                        raise
-                        
-    except Exception as e:
-        print(f"⚠️  Admin user setup: {e}")
-        # Don't crash app if admin creation fails
-
 if __name__ == '__main__':
     app = create_app()
     
@@ -1282,10 +1234,6 @@ if __name__ == '__main__':
     if os.environ.get('FLASK_ENV') != 'production':
         with app.app_context():
             db.create_all()
-    
-    # Ensure admin user exists (quick operation)
-    with app.app_context():
-        ensure_admin_exists()
     
     # Get configuration from environment
     debug = os.environ.get('FLASK_DEBUG', 'False').lower() == 'true'
@@ -1298,4 +1246,6 @@ if __name__ == '__main__':
     print(f"   Host: {host}")
     print(f"   Port: {port}")
     
+    # Start Flask server first - healthcheck must pass!
+    # Admin creation happens on first request via before_first_request
     app.run(debug=debug, host=host, port=port)

@@ -72,6 +72,41 @@ def update_qr_codes():
         print(f"   ⚠️  QR code update warning: {e}")
         return False
 
+def create_admin_user():
+    """Create or reset admin user"""
+    try:
+        print("\n👤 Setting up admin user...")
+        from models import User
+        from werkzeug.security import generate_password_hash
+        
+        admin = User.query.filter_by(username='admin').first()
+        if not admin:
+            admin = User(
+                username='admin',
+                email='admin@spscon2025.com',
+                first_name='System',
+                last_name='Administrator'
+            )
+            admin.set_password('Admin97034122!')
+            db.session.add(admin)
+            print("   ✅ Admin user created")
+        else:
+            admin.set_password('Admin97034122!')
+            print("   ✅ Admin password reset")
+        
+        db.session.commit()
+        
+        # Verify it works
+        if admin.check_password('Admin97034122!'):
+            print("   ✅ Admin login verified")
+        
+        return True
+        
+    except Exception as e:
+        print(f"   ⚠️  Admin user setup warning: {e}")
+        db.session.rollback()
+        return False
+
 def run_heavy_setup():
     """Run all heavy setup operations"""
     print("🔨 Running heavy setup operations...")
@@ -83,10 +118,14 @@ def run_heavy_setup():
         # Fix password hash column (slow on large tables)
         fix_password_hash_column()
         
+        # Create/reset admin user (now that column is fixed)
+        create_admin_user()
+        
         # Update QR codes (slow with many posters)
         update_qr_codes()
         
         print("\n✅ Heavy setup complete!")
+        print("   🔑 Admin login: username=admin, password=Admin97034122!")
 
 if __name__ == '__main__':
     run_heavy_setup()
