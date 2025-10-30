@@ -55,9 +55,13 @@ def create_app():
         favorites_count = 0
         visited_count = 0
         
-        if current_user.is_authenticated:
-            favorites_count = Favorite.query.filter_by(user_id=current_user.id).count()
-            visited_count = Visit.query.filter_by(user_id=current_user.id).count()
+        try:
+            if current_user.is_authenticated:
+                favorites_count = Favorite.query.filter_by(user_id=current_user.id).count()
+                visited_count = Visit.query.filter_by(user_id=current_user.id).count()
+        except Exception as e:
+            # Database might not be ready yet, return zeros
+            print(f"Warning: Could not load navbar counts: {e}")
         
         return {
             'favorites_count': favorites_count,
