@@ -10,9 +10,9 @@ else
     echo "⚠️  Local environment detected"
 fi
 
-# Run database setup with timeout
-echo "📊 Running database setup..."
-timeout 60 python3 deploy.py &
+# Run database setup with timeout (reduced to 45s to ensure app starts)
+echo "📊 Running database setup (max 45 seconds)..."
+timeout 45 python3 deploy.py 2>&1 &
 DEPLOY_PID=$!
 
 # Wait for deploy or timeout
@@ -20,13 +20,13 @@ wait $DEPLOY_PID 2>/dev/null
 DEPLOY_EXIT=$?
 
 if [ $DEPLOY_EXIT -eq 0 ]; then
-    echo "✅ Database setup completed"
+    echo "✅ Database setup completed successfully"
 elif [ $DEPLOY_EXIT -eq 124 ]; then
-    echo "⚠️  Database setup timed out after 60s"
-    echo "   Continuing with app startup..."
+    echo "⚠️  Database setup timed out after 45s"
+    echo "   App will start anyway - admin user may need manual creation"
 else
     echo "⚠️  Database setup had issues (exit code: $DEPLOY_EXIT)"
-    echo "   Continuing with app startup..."
+    echo "   App will start anyway - check logs above"
 fi
 
 # Run migrations with timeout (safe to run multiple times, only applies new ones)
@@ -47,11 +47,8 @@ else
     echo "   Continuing with app startup..."
 fi
 
-# Give database a moment to settle
-echo "⏱️  Waiting 2 seconds for database..."
-sleep 2
-
-# Start the Flask application
-echo "🌐 Starting Flask application..."
-echo "🔗 Health check will be available at /health"
+# Start the Flask application immediately
+echo "🌐 Starting Flask application NOW..."
+echo "🔗 Health check endpoint: /health"
+echo "⏰ App must start within healthcheck window!"
 python3 app.py
