@@ -23,8 +23,30 @@
     .view-toggle-btn {
         min-width: 120px;
     }
-    [data-theme="dark"] .leaflet-tile {
-        filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
+    /* Dark mode map styling */
+    [data-theme="dark"] .leaflet-container {
+        background: #1a1a1a;
+    }
+    
+    [data-theme="dark"] .leaflet-popup-content-wrapper,
+    [data-theme="dark"] .leaflet-popup-tip {
+        background: #2d3748;
+        color: #e2e8f0;
+    }
+    
+    [data-theme="dark"] .leaflet-popup-content-wrapper .institution-popup h6 {
+        color: #60a5fa;
+    }
+    
+    [data-theme="dark"] .leaflet-control-zoom a,
+    [data-theme="dark"] .leaflet-control-attribution {
+        background: #2d3748;
+        color: #e2e8f0;
+        border-color: #4a5568;
+    }
+    
+    [data-theme="dark"] .leaflet-control-zoom a:hover {
+        background: #4a5568;
     }
 </style>
 {% endblock %}
@@ -113,7 +135,205 @@ const stateCoords = {
     'wisconsin': [44.268543, -89.616508], 'wyoming': [42.755966, -107.302490]
 };
 
-// Major city coordinates
+// University and college coordinates (comprehensive list)
+const universityCoords = {
+    // A
+    'abilene christian university': [32.4579, -99.7331],
+    'adelphi university': [40.7236, -73.5848],
+    'adelphi': [40.7236, -73.5848],
+    'angelo state university': [31.4412, -100.4639],
+    'angelo state': [31.4412, -100.4639],
+    'appalachian state university': [36.2168, -81.6746],
+    'arkansas tech university': [35.2968, -93.1604],
+    'augustana college': [41.5092, -90.5776],
+    'austin peay state university': [36.5287, -87.3595],
+    
+    // B
+    'berea college': [37.5689, -84.2946],
+    'bridgewater state university': [41.9904, -70.9629],
+    'brigham young university - idaho': [43.8150, -111.7833],
+    
+    // C
+    'california state university, sacramento': [38.5616, -121.4247],
+    'california state university sacramento': [38.5616, -121.4247],
+    'csu sacramento': [38.5616, -121.4247],
+    'sacramento state university': [38.5616, -121.4247],
+    'carnegie mellon university': [40.4433, -79.9436],
+    'carthage college': [42.6102, -87.8215],
+    'center for astrophysics | harvard & smithsonian': [42.3770, -71.1167],
+    'central connecticut state university': [41.6929, -72.8187],
+    'cleveland state university': [41.5017, -81.6754],
+    'coe college': [42.0308, -91.6656],
+    'college of wooster': [40.8073, -81.9346],
+    'the college of wooster': [40.8073, -81.9346],
+    'colorado college': [38.8467, -104.8253],
+    'colorado mesa university': [39.0881, -108.5673],
+    'colorado mesa univerity': [39.0881, -108.5673],
+    
+    // D
+    'davidson college': [35.4995, -80.8481],
+    'drury university': [37.2153, -93.2982],
+    'duke university': [36.0014, -78.9382],
+    
+    // E
+    'east carolina university': [35.6063, -77.3668],
+    'east texas a&m university': [33.1243, -95.5555],
+    'embry-riddle aeronautical university': [29.1895, -81.0478],
+    'embry-riddle aeronautical university - prescott': [34.6192, -112.4491],
+    'embry-riddle aeronautical university prescott': [34.6192, -112.4491],
+    
+    // F
+    'florida institute of technology': [28.0656, -80.6237],
+    'florida state university': [30.4419, -84.2981],
+    'franklin and marshall college': [40.0453, -76.3090],
+    'furman university': [34.9243, -82.4387],
+    
+    // G
+    'george washington university': [38.8998, -77.0486],
+    'the george washington university': [38.8998, -77.0486],
+    'georgia state university': [33.7537, -84.3863],
+    'gonzaga university': [47.6678, -117.4026],
+    'grambling state university': [32.5264, -92.7143],
+    'grove city college': [41.1587, -80.0878],
+    
+    // H
+    'harvard university': [42.3770, -71.1167],
+    'haverford college': [40.0089, -75.3012],
+    'high point university': [35.9956, -80.0070],
+    
+    // J
+    'juniata college': [40.3947, -77.8178],
+    
+    // L
+    'lamar university': [30.0417, -94.0741],
+    'lawrence technological university': [42.4805, -83.2351],
+    'louisiana tech university': [32.5126, -92.6371],
+    'lycoming college': [41.2406, -77.0011],
+    
+    // M
+    'massachusetts college of liberal arts': [42.7015, -73.1823],
+    'miami university': [39.5098, -84.7343],
+    'millersville university': [40.0033, -76.3550],
+    'millersville university of pennsylvania': [40.0033, -76.3550],
+    'minnesota state university moorhead': [46.8772, -96.7769],
+    'minnesota state moorhead': [46.8772, -96.7769],
+    'minnesota state universtiy moorhead': [46.8772, -96.7769],
+    'montana state university': [45.6658, -111.0492],
+    'morgan state university': [39.3435, -76.5844],
+    'mount holyoke college': [42.2577, -72.5738],
+    
+    // N
+    'nc state university': [35.7847, -78.6821],
+    'north carolina state university': [35.7847, -78.6821],
+    'north carolina a&t state university': [36.0746, -79.7197],
+    'new york university': [40.7295, -73.9965],
+    'nyu': [40.7295, -73.9965],
+    'nebraska wesleyan university': [40.8086, -96.7003],
+    'northern arizona university': [35.1853, -111.6531],
+    
+    // O
+    'oglethorpe university': [33.8856, -84.2919],
+    'ohio university': [39.3292, -82.1013],
+    'ohlone college': [37.5269, -121.9163],
+    'old dominion university': [36.8858, -76.3054],
+    
+    // P
+    'pennsylvania state university': [40.7982, -77.8599],
+    'penn state university': [40.7982, -77.8599],
+    'the pennsylvania state university': [40.7982, -77.8599],
+    'pennsylvania state university (penn state)': [40.7982, -77.8599],
+    'pullman high school': [46.7312, -117.1796],
+    
+    // R
+    'randolph college': [37.3946, -79.1928],
+    'rhodes college': [35.1505, -89.9375],
+    'rowan university': [39.7084, -75.1177],
+    'rutgers university': [40.5008, -74.4474],
+    'rutgers university - nb': [40.5008, -74.4474],
+    'rutgers university - new brunswick': [40.5008, -74.4474],
+    
+    // S
+    'suny new paltz': [41.7443, -74.0843],
+    'saint joseph\'s university': [39.9937, -75.2396],
+    'saint joesph\'s university': [39.9937, -75.2396],
+    'saint josephs university': [39.9937, -75.2396],
+    'saint vincent college': [40.3156, -79.4597],
+    'south dakota school of mines & technology': [44.0750, -103.2074],
+    'south dakota mines': [44.0750, -103.2074],
+    
+    // T
+    'texas lutheran university': [29.7027, -97.9419],
+    'the ohio state university': [40.0067, -83.0305],
+    'the university of mississippi': [34.3665, -89.5348],
+    'university of mississippi': [34.3665, -89.5348],
+    'the university of tennessee at chattanooga': [35.0456, -85.3097],
+    'university of tennessee at chattanooga': [35.0456, -85.3097],
+    'the university of utah': [40.7649, -111.8421],
+    
+    // U
+    'uc berkeley': [37.8719, -122.2585],
+    'university of california, berkeley': [37.8719, -122.2585],
+    'university of california san diego': [32.8801, -117.2340],
+    'university of california sacramento': [38.5616, -121.4247],
+    'upr mayagüez': [18.2110, -67.1397],
+    'university of puerto rico': [18.4039, -66.0534],
+    'university of puerto rico - mayagüez': [18.2110, -67.1397],
+    'university of puerto rico mayaguez': [18.2110, -67.1397],
+    'university of puerto rico at mayaguez': [18.2110, -67.1397],
+    'university of puerto rico-mayagüez': [18.2110, -67.1397],
+    'university of puerto rico-rio piedras': [18.4039, -66.0534],
+    'utep': [31.7719, -106.5051],
+    'university of texas at el paso': [31.7719, -106.5051],
+    'university of alabama at birmingham': [33.5022, -86.8036],
+    'university of arkansas': [36.0686, -94.1748],
+    'university of chicago': [41.7886, -87.5987],
+    'university of colorado denver': [39.7392, -104.9903],
+    'university of delaware': [39.6791, -75.7514],
+    'university of duhok': [36.8667, 42.9500],
+    'university of hawai\'i at manoa': [21.2969, -157.8170],
+    'university of illinois urbana-champaign': [40.1020, -88.2272],
+    'university of illinois at urbana-champaign': [40.1020, -88.2272],
+    'university of kansas': [38.9543, -95.2558],
+    'university of ma dartmouth': [41.5669, -71.0069],
+    'university of massachusetts dartmouth': [41.5669, -71.0069],
+    'university of maine orono': [44.8994, -68.6731],
+    'university of maine at orono': [44.8994, -68.6731],
+    'university of mary washington': [38.3032, -77.4605],
+    'university of maryland, baltimore county': [39.2554, -76.7114],
+    'university of maryland, college park': [38.9869, -76.9426],
+    'university of missouri - st. louis': [38.7101, -90.3117],
+    'university of missouri st. louis': [38.7101, -90.3117],
+    'university of missouri at st louis': [38.7101, -90.3117],
+    'university of nebraska-lincoln': [40.8202, -96.7005],
+    'university of north dakota': [47.9225, -97.0714],
+    'university of north florida': [30.2691, -81.5138],
+    'university of san diego': [32.7714, -117.1887],
+    'university of southern california': [34.0224, -118.2851],
+    'university of utah': [40.7649, -111.8421],
+    'university of washington': [47.6553, -122.3035],
+    'university of washington bothell': [47.7586, -122.1906],
+    'university of wyoming': [41.3145, -105.5673],
+    
+    // V
+    'virginia tech': [37.2284, -80.4234],
+    
+    // W
+    'washington state university': [46.7312, -117.1796],
+    'weber state university': [41.1887, -111.9502],
+    'weber state': [41.1887, -111.9502],
+    'western illinois university': [40.4718, -90.6784],
+    'westminster university': [40.8893, -111.9085],
+    'william jewell college': [39.2470, -94.4138],
+    'worcester polytechnic institute': [42.2746, -71.8063],
+    
+    // X
+    'xavier university': [39.1477, -84.4742],
+    
+    // Y
+    'yale university': [41.3163, -72.9223]
+};
+
+// Major city coordinates (fallback)
 const cityCoords = {
     'boston': [42.3601, -71.0589], 'new york': [40.7128, -74.0060], 'philadelphia': [39.9526, -75.1652],
     'washington': [38.9072, -77.0369], 'atlanta': [33.7490, -84.3880], 'miami': [25.7617, -80.1918],
@@ -129,18 +349,26 @@ const cityCoords = {
 function geocodeInstitution(name) {
     const nameLower = name.toLowerCase();
     
-    // Check city names first
+    // Check exact university matches first (most accurate)
+    for (const [university, coords] of Object.entries(universityCoords)) {
+        if (nameLower === university || nameLower.includes(university)) {
+            // Add tiny random offset to prevent exact overlaps (0.001 degrees ≈ 100m)
+            return [coords[0] + (Math.random() - 0.5) * 0.002, coords[1] + (Math.random() - 0.5) * 0.002];
+        }
+    }
+    
+    // Check city names
     for (const [city, coords] of Object.entries(cityCoords)) {
         if (nameLower.includes(city)) {
-            // Add slight random offset to prevent exact overlaps
-            return [coords[0] + (Math.random() - 0.5) * 0.1, coords[1] + (Math.random() - 0.5) * 0.1];
+            // Add slight random offset for city-level precision
+            return [coords[0] + (Math.random() - 0.5) * 0.05, coords[1] + (Math.random() - 0.5) * 0.05];
         }
     }
     
     // Check state names
     for (const [state, coords] of Object.entries(stateCoords)) {
         if (nameLower.includes(state)) {
-            return [coords[0] + (Math.random() - 0.5) * 0.5, coords[1] + (Math.random() - 0.5) * 0.5];
+            return [coords[0] + (Math.random() - 0.5) * 0.3, coords[1] + (Math.random() - 0.5) * 0.3];
         }
     }
     
@@ -153,11 +381,23 @@ function initMap() {
     // Create map centered on USA
     map = L.map('map').setView([39.8283, -98.5795], 4);
     
-    // Add tile layer
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-        maxZoom: 18,
-    }).addTo(map);
+    // Check if dark mode is active
+    const isDarkMode = document.documentElement.getAttribute('data-theme') === 'dark';
+    
+    // Add tile layer based on theme
+    if (isDarkMode) {
+        // CartoDB Dark Matter for dark mode
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+            maxZoom: 18,
+        }).addTo(map);
+    } else {
+        // Standard OpenStreetMap for light mode
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: 18,
+        }).addTo(map);
+    }
     
     // Create marker cluster group
     markers = L.markerClusterGroup({
@@ -178,7 +418,7 @@ function initMap() {
                 <h6>${name}</h6>
                 <p class="mb-2">${count} poster${count !== 1 ? 's' : ''}</p>
                 <a href="/institutions/${encodeURIComponent(name)}" class="btn btn-sm btn-primary">
-                    <i class="bi bi-eye"></i> View Posters
+                    View Posters
                 </a>
             </div>
         `;
@@ -248,5 +488,29 @@ document.addEventListener('DOMContentLoaded', function() {
     const preferredView = localStorage.getItem('institutionsView') || 'map';
     showView(preferredView);
 });
+
+// Listen for theme changes and reload map
+if (window.MutationObserver) {
+    const observer = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+            if (mutation.type === 'attributes' && mutation.attributeName === 'data-theme') {
+                // Theme changed, reload the map if it exists
+                if (map) {
+                    const currentView = map.getCenter();
+                    const currentZoom = map.getZoom();
+                    map.remove();
+                    map = null;
+                    initMap();
+                    map.setView(currentView, currentZoom);
+                }
+            }
+        });
+    });
+    
+    observer.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ['data-theme']
+    });
+}
 </script>
 {% endblock %}

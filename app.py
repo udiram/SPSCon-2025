@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session, abort
+from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session, abort, make_response
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from models import db, User, Poster, Favorite, Visit, PresenterStatus, UserProfile, UserQuery, RecommendationCache, UserSettings, ChangeRequest
 from config import Config
@@ -129,10 +129,15 @@ def create_app():
         if request.method == 'POST':
             username = request.form['username']
             password = request.form['password']
+            # Check for remember me checkbox (checked by default in form)
+            remember = request.form.get('remember', 'off') == 'on'
             user = User.query.filter_by(username=username).first()
             
             if user and user.check_password(password):
-                login_user(user)
+                # Set session as permanent for persistence
+                session.permanent = True
+                # Remember the user based on checkbox
+                login_user(user, remember=remember)
                 return redirect(url_for('index'))
             else:
                 flash('Invalid username or password')
