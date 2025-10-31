@@ -128,7 +128,7 @@
                             <h4 class="text-primary">Session I</h4>
                             <p class="mb-1"><strong>Friday, Oct 31</strong></p>
                             <p class="mb-1">10:30 AM – 12:00 PM</p>
-                            <div class="badge bg-primary fs-6">{{ categories.get('Supporting Our Phase Shifts', 0) + categories.get('Careers and Corporate Internships', 0) }} Posters</div>
+                            <div class="badge bg-primary fs-6">{{ session_counts.get(1, 0) }} Posters</div>
                         </div>
                     </div>
                     <div class="col-6">
@@ -136,7 +136,7 @@
                             <h4 class="text-success">Session II</h4>
                             <p class="mb-1"><strong>Saturday, Nov 1</strong></p>
                             <p class="mb-1">11:30 AM – 1:00 PM</p>
-                            <div class="badge bg-success fs-6">{{ categories.get('Sigma Pi Sigma Chapter Activities', 0) + categories.get('Research', 0) }} Posters</div>
+                            <div class="badge bg-success fs-6">{{ session_counts.get(2, 0) }} Posters</div>
                         </div>
                     </div>
                 </div>
@@ -158,7 +158,28 @@
                 <h5><i class="bi bi-building"></i> Top Institutions by Poster Count</h5>
             </div>
             <div class="card-body">
-                <div id="institution-chart"></div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <ol class="list-group list-group-numbered">
+                            {% for institution, count in institutions[:5] %}
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                {{ institution }}
+                                <span class="badge bg-success rounded-pill">{{ count }}</span>
+                            </li>
+                            {% endfor %}
+                        </ol>
+                    </div>
+                    <div class="col-md-6">
+                        <ol class="list-group list-group-numbered" start="6">
+                            {% for institution, count in institutions[5:10] %}
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                {{ institution }}
+                                <span class="badge bg-success rounded-pill">{{ count }}</span>
+                            </li>
+                            {% endfor %}
+                        </ol>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -233,56 +254,6 @@ legendItems.append("text")
     .attr("font-size", "12px")
     .attr("font-weight", "500")
     .text(d => `${d[0]} (${d[1]})`);
-
-// Institution Chart
-const institutionData = {{ institutions | tojson }};
-const institutionSvg = d3.select("#institution-chart")
-    .append("svg")
-    .attr("width", "100%")
-    .attr("height", 400);
-
-const institutionMargin = {top: 20, right: 30, bottom: 40, left: 200};
-const institutionWidth = 800 - institutionMargin.left - institutionMargin.right;
-const institutionHeight = 400 - institutionMargin.top - institutionMargin.bottom;
-
-const institutionG = institutionSvg.append("g")
-    .attr("transform", `translate(${institutionMargin.left}, ${institutionMargin.top})`);
-
-const institutionY = d3.scaleBand()
-    .domain(institutionData.map(d => d[0]))
-    .range([0, institutionHeight])
-    .padding(0.1);
-
-const institutionX = d3.scaleLinear()
-    .domain([0, d3.max(institutionData, d => d[1])])
-    .range([0, institutionWidth]);
-
-institutionG.selectAll(".bar")
-    .data(institutionData)
-    .enter().append("rect")
-    .attr("class", "bar")
-    .attr("y", d => institutionY(d[0]))
-    .attr("height", institutionY.bandwidth())
-    .attr("x", 0)
-    .attr("width", d => institutionX(d[1]))
-    .attr("fill", "#2ecc71");
-
-institutionG.selectAll(".bar-label")
-    .data(institutionData)
-    .enter().append("text")
-    .attr("class", "bar-label")
-    .attr("x", d => institutionX(d[1]) + 5)
-    .attr("y", d => institutionY(d[0]) + institutionY.bandwidth() / 2)
-    .attr("dy", "0.35em")
-    .attr("font-size", "12px")
-    .text(d => d[1]);
-
-institutionG.append("g")
-    .call(d3.axisLeft(institutionY));
-
-institutionG.append("g")
-    .attr("transform", `translate(0, ${institutionHeight})`)
-    .call(d3.axisBottom(institutionX));
 
 // Initialize search suggestions
 document.addEventListener('DOMContentLoaded', function() {

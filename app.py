@@ -102,6 +102,11 @@ def create_app():
             category = poster.get_category_name()
             categories[category] = categories.get(category, 0) + 1
         
+        # Get session distribution
+        session_counts = {}
+        for poster in Poster.query.all():
+            session_counts[poster.session] = session_counts.get(poster.session, 0) + 1
+        
         # Get institution distribution (top 10 for chart)
         institutions = db.session.query(Poster.institution, db.func.count(Poster.id)).group_by(Poster.institution).order_by(db.func.count(Poster.id).desc()).limit(10).all()
         institutions = [(row[0], row[1]) for row in institutions]
@@ -115,6 +120,7 @@ def create_app():
                              total_visits=total_visits,
                              visit_counts=visit_counts,
                              categories=categories,
+                             session_counts=session_counts,
                              institutions=institutions,
                              total_institutions=total_institutions)
     
