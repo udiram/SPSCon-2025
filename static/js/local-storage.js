@@ -539,13 +539,15 @@ async function toggleFavoriteAPI(posterId) {
             showToast(localStorageManager.isFavorite(posterId) ? 'Added to favorites!' : 'Removed from favorites!', localStorageManager.isFavorite(posterId) ? 'success' : 'info');
         } else {
             // Handle server response for logged-in user
-            localStorageManager.updateFavoriteButton(posterId);
-            
-            // Update navbar count for logged-in users
+            // Update button state based on API response, not localStorage
             if (data.status === 'added') {
+                btn.innerHTML = '<i class="bi bi-heart-fill"></i> Remove from Favorites';
+                btn.classList.add('favorited');
                 localStorageManager.incrementNavbarCount('favorite');
                 showToast('Added to favorites!', 'success');
             } else if (data.status === 'removed') {
+                btn.innerHTML = '<i class="bi bi-heart"></i> Add to Favorites';
+                btn.classList.remove('favorited');
                 localStorageManager.decrementNavbarCount('favorite');
                 showToast('Removed from favorites!', 'info');
             }
@@ -595,13 +597,17 @@ async function markVisitedAPI(posterId) {
             showToast(wasAdded ? 'Marked as visited!' : 'Removed from visited', wasAdded ? 'success' : 'info');
         } else {
             // Handle server response for logged-in user
-            localStorageManager.updateVisitedButton(posterId);
-            
-            // Update navbar count for logged-in users
+            // Update button state based on API response, not localStorage
             if (data.status === 'added') {
+                btn.innerHTML = '<i class="bi bi-check-circle"></i> Visited';
+                btn.classList.add('btn-success');
+                btn.classList.remove('btn-outline-success');
                 localStorageManager.incrementNavbarCount('visited');
                 showToast('Marked as visited!', 'success');
             } else if (data.status === 'removed') {
+                btn.innerHTML = '<i class="bi bi-check-circle"></i> Mark as Visited';
+                btn.classList.remove('btn-success');
+                btn.classList.add('btn-outline-success');
                 localStorageManager.decrementNavbarCount('visited');
                 showToast('Removed from visited', 'info');
             } else {
