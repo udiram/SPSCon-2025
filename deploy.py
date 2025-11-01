@@ -491,8 +491,30 @@ def migrate_database():
                     print("⚠️  Database seeding failed, but tables are created")
                     print("   You can import data later via admin panel")
             
+            # Run user profile migration (new columns and tables)
+            print("\n🔄 Running user profile migration...")
+            print("=" * 50)
+            try:
+                import subprocess
+                result = subprocess.run(
+                    [sys.executable, 'migrate_user_profile.py'],
+                    capture_output=True,
+                    text=True
+                )
+                print(result.stdout)
+                if result.returncode != 0:
+                    print("⚠️  User profile migration had issues:")
+                    print(result.stderr)
+                    print("   Continuing with deployment...")
+                else:
+                    print("✅ User profile migration completed")
+            except Exception as e:
+                print(f"⚠️  Could not run user profile migration: {e}")
+                print("   Continuing with deployment...")
+            print("=" * 50)
+            
             # Update QR codes for all posters (new or existing)
-            print("🔄 Updating QR codes with correct domain...")
+            print("\n🔄 Updating QR codes with correct domain...")
             if not update_qr_codes():
                 print("⚠️  QR code update failed, but migration continues")
             

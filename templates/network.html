@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+
+{% block title %}Network - SPSCon 2025{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <h2><i class="bi bi-people"></i> Network & Connect</h2>
+            <p class="text-muted">Find and connect with researchers who share your interests</p>
+        </div>
+    </div>
+
+    <!-- Similar Researchers Section -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="bi bi-star"></i> People You Might Know</h5>
+                </div>
+                <div class="card-body">
+                    <div id="recommendedUsers"></div>
+                    <div id="loadingSpinner" class="text-center py-4">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2">Finding similar researchers...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- My Connections Section -->
+    <div class="row mt-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="bi bi-check-circle"></i> My Connections</h5>
+                </div>
+                <div class="card-body">
+                    <div id="myConnections"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pending Requests Section -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="bi bi-clock-history"></i> Pending Requests</h5>
+                </div>
+                <div class="card-body">
+                    <div id="pendingRequests"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Load user recommendations
+async function loadRecommendations() {
+    try {
+        const response = await fetch('/api/recommend/users');
+        if (!response.ok) throw new Error('Failed to load');
+        
+        const data = await response.json();
+        displayRecommendedUsers(data.users);
+    } catch (error) {
+        document.getElementById('loadingSpinner').innerHTML = '<p class="text-muted">Unable to load recommendations</p>';
+    }
+}
+
+function displayRecommendedUsers(users) {
+    const container = document.getElementById('recommendedUsers');
+    const spinner = document.getElementById('loadingSpinner');
+    
+    spinner.style.display = 'none';
+    
+    if (users.length === 0) {
+        container.innerHTML = '<p class="text-muted">No recommendations available yet. Interact with more posters to get personalized suggestions!</p>';
+        return;
+    }
+    
+    container.innerHTML = users.map(user => `
+        <div class="user-card ${user.is_presenter ? 'presenter-card' : ''}">
+            <div class="d-flex justify-content-between align-items-start">
+                <div class="flex-grow-1">
+                    <div class="d-flex align-items-center gap-2 mb-1">
+                        <h5 class="mb-0">${user.full_name || user.username}</h5>
+                        ${user.is_presenter ? '<span class="badge bg-warning text-dark"><i class="bi bi-star-fill"></i> Presenter</span>' : ''}
+                    </div>
+                    ${user.shared_posters > 0 ? `<span class="badge bg-primary mb-2">${user.shared_posters} shared interests</span>` : ''}
+                    ${user.shared_categories && user.shared_categories.length > 0 ? `
+                        <div class="mb-2">
+                            <small><strong>Shared interests:</strong></small><br>
+                            ${user.shared_categories.map(cat => `<span class="badge bg-info mt-1">${cat}</span>`).join(' ')}
+                        </div>
+                    ` : ''}
+                </div>
+                <div>
+                    <a href="/user/${user.username}" class="btn btn-sm btn-outline-primary me-2">Profile</a>
+                    <button class="btn btn-sm btn-primary" onclick="sendConnectionRequest(${user.id})">
+                        <i class="bi bi-person-plus"></i> Connect
+                    </button>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+async function sendConnectionRequest(userId) {
+    try {
+        const response = await fetch(`/api/connect/${userId}`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({message: 'Would like to connect!'})
+        });
+        
+        const data = await response.json();
+        alert(data.message);
+        if (data.status === 'success') {
+            loadRecommendations(); // Refresh
+        }
+    } catch (error) {
+        alert('Failed to send connection request');
+    }
+}
+
+async function loadConnections() {
+    try {
+        const response = await fetch('/api/connections');
+        const data = await response.json();
+        
+        const container = document.getElementById('myConnections');
+        if (data.connections.length === 0) {
+            container.innerHTML = '<p class="text-muted">No connections yet</p>';
+        } else {
+            container.innerHTML = data.connections.map(conn => `
+                <div class="mb-2">
+                    <a href="/user/${conn.username}">${conn.user}</a>
+                </div>
+            `).join('');
+        }
+    } catch (error) {
+        console.error('Failed to load connections', error);
+    }
+}
+
+async function loadPendingRequests() {
+    try {
+        const response = await fetch('/api/connections/pending');
+        const data = await response.json();
+        
+        const container = document.getElementById('pendingRequests');
+        if (data.pending.length === 0) {
+            container.innerHTML = '<p class="text-muted">No pending requests</p>';
+        } else {
+            container.innerHTML = data.pending.map(req => `
+                <div class="card mb-2">
+                    <div class="card-body">
+                        <p><strong>${req.from_user}</strong> wants to connect</p>
+                        <button class="btn btn-sm btn-success" onclick="acceptConnection(${req.id})">Accept</button>
+                        <button class="btn btn-sm btn-danger" onclick="declineConnection(${req.id})">Decline</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+    } catch (error) {
+        console.error('Failed to load pending requests', error);
+    }
+}
+
+async function acceptConnection(connId) {
+    try {
+        await fetch(`/api/connections/${connId}/accept`, {method: 'POST'});
+        loadPendingRequests();
+        loadConnections();
+    } catch (error) {
+        alert('Failed to accept connection');
+    }
+}
+
+async function declineConnection(connId) {
+    try {
+        await fetch(`/api/connections/${connId}/decline`, {method: 'POST'});
+        loadPendingRequests();
+    } catch (error) {
+        alert('Failed to decline connection');
+    }
+}
+
+// Load all data on page load
+document.addEventListener('DOMContentLoaded', function() {
+    loadRecommendations();
+    loadConnections();
+    loadPendingRequests();
+});
+</script>
+{% endblock %}
+
+

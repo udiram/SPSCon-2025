@@ -541,7 +541,7 @@ class RecommendationGenerator:
 
 
 class UserSimilarityCalculator:
-    """Calculates similarity between users for recommendations"""
+    """Calculates similarity between users for recommendations with enhanced multi-dimensional scoring"""
     
     def calculate_similarities(
         self,
@@ -550,41 +550,74 @@ class UserSimilarityCalculator:
         all_users: List[User],
         limit: int = 10
     ) -> List[Dict[str, Any]]:
-        """Calculate similarity scores between target user and all others"""
+        """
+        Calculate similarity scores between target user and all others.
+        Uses multi-dimensional scoring:
+        - Shared poster interactions (40%)
+        - Semantic research overlap (30%)
+        - Presented topic similarity (20%)
+        - Category/institution overlap (10%)
+        """
         similarities = []
         
-        # Get target user's interacted posters
-        target_favorites = {fav.poster_id for fav in Favorite.query.filter_by(user_id=target_user.id).all()}
-        target_visits = {visit.poster_id for visit in Visit.query.filter_by(user_id=target_user.id).all()}
-        target_interactions = target_favorites.union(target_visits)
+        # Get target user's interactions with weighted importance
+        target_favorites = Favorite.query.filter_by(user_id=target_user.id).all()
+        target_visits = Visit.query.filter_by(user_id=target_user.id).all()
+        
+        # Weight favorites higher than visits (1.5x)
+        target_weighted_interactions = {}
+        for fav in target_favorites:
+            target_weighted_interactions[fav.poster_id] = 1.5
+        for visit in target_visits:
+            if visit.poster_id not in target_weighted_interactions:
+                target_weighted_interactions[visit.poster_id] = 1.0
         
         # Get target semantic terms
         target_semantic = target_profile.get("semantic_terms", set())
         if isinstance(target_semantic, list):
             target_semantic = set(target_semantic)
         
+        # Check if target is a presenter
+        target_is_presenter = target_user.is_presenter()
+        target_presented_topics = set()
+        if target_is_presenter:
+            for poster in target_user.get_presented_posters():
+                target_presented_topics.update(extract_physics_terms(poster.title))
+        
         for user in all_users:
             if user.id == target_user.id:
                 continue
             
             # Get other user's interactions
-            other_favorites = {fav.poster_id for fav in Favorite.query.filter_by(user_id=user.id).all()}
-            other_visits = {visit.poster_id for visit in Visit.query.filter_by(user_id=user.id).all()}
-            other_interactions = other_favorites.union(other_visits)
+            other_favorites = Favorite.query.filter_by(user_id=user.id).all()
+            other_visits = Visit.query.filter_by(user_id=user.id).all()
             
-            # Calculate Jaccard similarity
-            if not target_interactions and not other_interactions:
+            # Weight favorites higher than visits
+            other_weighted_interactions = {}
+            for fav in other_favorites:
+                other_weighted_interactions[fav.poster_id] = 1.5
+            for visit in other_visits:
+                if visit.poster_id not in other_weighted_interactions:
+                    other_weighted_interactions[visit.poster_id] = 1.0
+            
+            # Skip if no interactions
+            if not target_weighted_interactions and not other_weighted_interactions:
                 continue
             
-            intersection = len(target_interactions.intersection(other_interactions))
-            union = len(target_interactions.union(other_interactions))
+            # 1. Calculate weighted interaction similarity (40% weight)
+            shared_posters = set(target_weighted_interactions.keys()).intersection(
+                set(other_weighted_interactions.keys())
+            )
             
-            if union == 0:
-                continue
+            if len(shared_posters) == 0 and (not target_weighted_interactions or not other_weighted_interactions):
+                interaction_score = 0.0
+            else:
+                # Calculate weighted similarity
+                shared_weight = sum(target_weighted_interactions.get(p, 0) for p in shared_posters)
+                total_weight = sum(target_weighted_interactions.values()) + sum(other_weighted_interactions.values())
+                interaction_score = (2 * shared_weight) / total_weight if total_weight > 0 else 0.0
             
-            jaccard_score = intersection / union
-            
-            # Get profile overlap
+            # 2. Semantic research overlap (30% weight)
             profile_builder = ProfileBuilder(user)
             other_profile = profile_builder.build_profile()
             
@@ -593,31 +626,75 @@ class UserSimilarityCalculator:
                 other_semantic = set(other_semantic)
             
             semantic_overlap = len(target_semantic & other_semantic)
-            semantic_score = min(1.0, semantic_overlap / max(1, len(target_semantic | other_semantic)))
+            semantic_union = len(target_semantic | other_semantic)
+            semantic_score = semantic_overlap / semantic_union if semantic_union > 0 else 0.0
             
+            # 3. Presented topic similarity (20% weight)
+            presentation_score = 0.0
+            user_is_presenter = user.is_presenter()
+            
+            if target_is_presenter and user_is_presenter:
+                # Both are presenters - compare presentation topics with 2x weight
+                user_presented_topics = set()
+                for poster in user.get_presented_posters():
+                    user_presented_topics.update(extract_physics_terms(poster.title))
+                
+                topic_overlap = len(target_presented_topics & user_presented_topics)
+                topic_union = len(target_presented_topics | user_presented_topics)
+                presentation_score = (topic_overlap / topic_union * 2.0) if topic_union > 0 else 0.0
+            elif target_is_presenter or user_is_presenter:
+                # One is a presenter - partial credit
+                if target_is_presenter:
+                    presented_topics = target_presented_topics
+                    interested_topics = other_semantic
+                else:
+                    presented_topics = set()
+                    for poster in user.get_presented_posters():
+                        presented_topics.update(extract_physics_terms(poster.title))
+                    interested_topics = target_semantic
+                
+                topic_match = len(presented_topics & interested_topics)
+                presentation_score = min(1.0, topic_match / max(1, len(presented_topics)))
+            
+            # 4. Category/institution overlap (10% weight)
             category_overlap = len(
                 set(target_profile.get("categories", [])).intersection(
                     set(other_profile.get("categories", []))
                 )
             )
-            tag_overlap = len(
-                set(target_profile.get("top_tags", [])).intersection(
-                    set(other_profile.get("top_tags", []))
+            institution_overlap = len(
+                set(target_profile.get("institutions", [])).intersection(
+                    set(other_profile.get("institutions", []))
                 )
             )
+            structural_score = min(1.0, (category_overlap * 0.7 + institution_overlap * 0.3) / 3)
             
-            # Combined score
-            profile_score = (semantic_score * 0.5) + (category_overlap * 0.3) + (tag_overlap * 0.2)
-            combined_score = (jaccard_score * 0.6) + (min(profile_score, 1.0) * 0.4)
+            # Combined weighted score
+            combined_score = (
+                interaction_score * 0.40 +
+                semantic_score * 0.30 +
+                min(presentation_score, 1.0) * 0.20 +
+                structural_score * 0.10
+            )
             
-            if combined_score > 0:
+            if combined_score > 0.05:  # Minimum threshold
+                # Get shared presentation topics if applicable
+                shared_presentation_topics = []
+                if user_is_presenter and target_is_presenter:
+                    user_presented_topics = set()
+                    for poster in user.get_presented_posters():
+                        user_presented_topics.update(extract_physics_terms(poster.title))
+                    shared_presentation_topics = list(target_presented_topics & user_presented_topics)[:3]
+                
                 similarities.append({
                     "user": user,
                     "score": combined_score,
-                    "shared_posters": intersection,
+                    "shared_posters": len(shared_posters),
+                    "is_presenter": user_is_presenter,
                     "categories": list(set(target_profile.get("categories", [])).intersection(
                         set(other_profile.get("categories", []))
-                    ))
+                    )),
+                    "presentation_topics": shared_presentation_topics
                 })
         
         # Sort by score

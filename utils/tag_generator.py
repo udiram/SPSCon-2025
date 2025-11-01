@@ -8,6 +8,26 @@ try:
 except ImportError:
     SKLEARN_AVAILABLE = False
 
+# Physics subfield taxonomy for validation
+PHYSICS_SUBFIELDS = {
+    'medical physics', 'radiation therapy', 'radiotherapy', 'oncology', 'radiology',
+    'quantum physics', 'quantum computing', 'quantum mechanics', 'quantum information',
+    'particle physics', 'high energy physics', 'experimental particle physics',
+    'astrophysics', 'cosmology', 'astronomy', 'stellar physics',
+    'condensed matter physics', 'solid state physics', 'materials science',
+    'nuclear physics', 'nuclear engineering',
+    'optics', 'photonics', 'laser physics', 'optical physics',
+    'computational physics', 'simulation', 'numerical methods',
+    'plasma physics', 'fusion',
+    'biophysics', 'biological physics',
+    'engineering physics', 'applied physics',
+    'theoretical physics', 'mathematical physics',
+    'atomic physics', 'molecular physics',
+    'geophysics', 'atmospheric physics',
+    'statistical mechanics', 'thermodynamics',
+    'experimental physics', 'instrumentation'
+}
+
 def extract_keywords_from_title(title):
     """Extract meaningful keywords from poster title"""
     # Expanded stop words list
@@ -35,31 +55,66 @@ def extract_keywords_from_title(title):
     # Return top 5 most meaningful keywords (reduced from 10)
     return list(dict(Counter(keywords).most_common(5)).keys())
 
-def generate_tags_for_poster(poster):
-    """Generate comprehensive tags for a poster"""
+def generate_tags_for_poster(poster, use_llm=True):
+    """
+    Generate comprehensive tags for a poster using LLM-based smart tagging.
+    Falls back to rule-based approach if LLM fails.
+    """
     tags = set()
     
-    # Add institution name (clean it up)
+    # Try LLM-based tagging first
+    if use_llm:
+        try:
+            from utils.groq_client import GroqClient
+            groq = GroqClient()
+            smart_tags = groq.generate_smart_tags(poster.title)
+            
+            if smart_tags:
+                # Validate tags against physics taxonomy
+                validated_tags = []
+                for tag in smart_tags:
+                    tag_lower = tag.lower().strip()
+                    # Accept if it matches known subfields or is a reasonable physics term
+                    if tag_lower in PHYSICS_SUBFIELDS or len(tag_lower.split()) <= 3:
+                        validated_tags.append(tag_lower)
+                
+                if validated_tags:
+                    tags.update(validated_tags[:10])  # Keep top 10 LLM tags
+        except Exception as e:
+            print(f"LLM tagging failed for poster {poster.id}: {e}")
+    
+    # Add metadata tags (institution, author, category, session)
+    # These are always included regardless of LLM success
+    
+    # Add institution (shortened for clarity)
     institution = poster.institution.lower().strip()
-    if institution:
+    # Try to extract just the main institution name
+    if 'university' in institution:
+        # Extract university name
+        inst_parts = institution.split('university')
+        if inst_parts[0]:
+            short_inst = inst_parts[0].strip() + ' university'
+            tags.add(short_inst)
+    elif institution:
         tags.add(institution)
     
-    # Add author names (only full name to avoid duplicates)
+    # Add author name (for searchability)
     full_name = f"{poster.first_name.lower()} {poster.last_name.lower()}"
     tags.add(full_name)
     
     # Add category
     tags.add(poster.get_category_name().lower())
     
-    # Extract keywords from title (limited to most meaningful)
-    keywords = extract_keywords_from_title(poster.title)
-    tags.update(keywords)
-    
     # Add session info
     tags.add(f"session {poster.session}")
     
-    # Limit total tags to prevent overwhelming
-    return list(tags)[:15]  # Maximum 15 tags per poster
+    # If LLM didn't provide enough tags, supplement with keyword extraction
+    if len(tags) < 8:
+        keywords = extract_keywords_from_title(poster.title)
+        tags.update(keywords[:5])
+    
+    # Return as list, limit to 15 total
+    return list(tags)[:15]
 
 def find_similar_posters(poster, all_posters, limit=5):
     """Find similar posters based on title and tag similarity"""

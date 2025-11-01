@@ -1,3 +1,10 @@
+{# Jinja Macros #}
+{% macro presenter_badge(size='sm') %}
+<span class="badge bg-warning text-dark badge-{{ size }} presenter-badge">
+    <i class="bi bi-star-fill"></i> Presenter
+</span>
+{% endmacro %}
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -312,6 +319,48 @@
         }
         .favorite-btn {
             transition: all 0.3s ease;
+        }
+        
+        /* Presenter badge styling */
+        .presenter-badge {
+            background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%) !important;
+            color: #fff !important;
+            font-weight: 600;
+            padding: 0.35em 0.65em;
+            box-shadow: 0 2px 4px rgba(243, 156, 18, 0.3);
+        }
+        
+        .presenter-badge i {
+            animation: twinkle 2s ease-in-out infinite;
+        }
+        
+        @keyframes twinkle {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+        
+        /* User card styling */
+        .user-card {
+            background: var(--card-bg);
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-left: 4px solid #27ae60;
+            transition: all 0.3s ease;
+            border: 1px solid var(--border-color);
+        }
+        
+        .user-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        
+        [data-theme="dark"] .user-card:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+        
+        .user-card.presenter-card {
+            border-left-color: #f39c12;
         }
         
         /* High contrast mode */
@@ -762,6 +811,13 @@
                             <i class="bi bi-robot"></i> AI Recommendations
                         </a>
                     </li>
+                    {% if current_user.is_authenticated %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('network_page') }}">
+                            <i class="bi bi-people"></i> Network
+                        </a>
+                    </li>
+                    {% endif %}
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('institutions_list') }}">
                             <i class="bi bi-bank"></i> Institutions

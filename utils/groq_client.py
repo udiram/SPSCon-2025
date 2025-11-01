@@ -98,6 +98,53 @@ class GroqClient:
         user_prompt = json.dumps({"target": profile, "users": users})[:12000]
         content = self._chat(system_prompt, user_prompt, temperature=0.1)
         return self._safe_json_loads(content)
+    
+    def generate_smart_tags(self, title: str, abstract: Optional[str] = None) -> List[str]:
+        """
+        Generate nuanced, general physics category tags using LLM.
+        Returns 8-12 high-quality tags focused on physics subfields.
+        """
+        system_prompt = (
+            "You are an expert physics categorization system. Generate 8-12 nuanced, general physics category tags "
+            "for research posters. Focus on broad subfields and methodologies, not overly specific terms.\n\n"
+            "Valid categories include (but not limited to):\n"
+            "- medical physics, radiation therapy, radiotherapy, oncology\n"
+            "- quantum physics, quantum computing, quantum mechanics, quantum information\n"
+            "- particle physics, high energy physics, experimental particle physics\n"
+            "- astrophysics, cosmology, astronomy, stellar physics\n"
+            "- condensed matter physics, solid state physics, materials science\n"
+            "- nuclear physics, nuclear engineering\n"
+            "- optics, photonics, laser physics, optical physics\n"
+            "- computational physics, simulation, numerical methods\n"
+            "- plasma physics, fusion\n"
+            "- biophysics, biological physics\n"
+            "- engineering physics, applied physics\n"
+            "- theoretical physics, mathematical physics\n"
+            "- atomic physics, molecular physics\n"
+            "- geophysics, atmospheric physics\n"
+            "- statistical mechanics, thermodynamics\n\n"
+            "Return ONLY a JSON object with format: {\"tags\": [\"tag1\", \"tag2\", ...]}\n"
+            "Keep tags general and meaningful. Avoid overly specific jargon."
+        )
+        
+        user_prompt = f"Title: {title}"
+        if abstract:
+            user_prompt += f"\n\nAbstract/Description: {abstract[:500]}"
+        
+        try:
+            content = self._chat(system_prompt, user_prompt, temperature=0.3)
+            result = self._safe_json_loads(content)
+            tags = result.get("tags", [])
+            
+            # Validate and limit tags
+            if isinstance(tags, list) and len(tags) > 0:
+                # Keep 8-12 tags, lowercase and deduplicate
+                unique_tags = list(dict.fromkeys([t.lower().strip() for t in tags if isinstance(t, str)]))
+                return unique_tags[:12]
+            return []
+        except Exception as e:
+            print(f"Error generating smart tags: {e}")
+            return []
 
 
 def hash_query(query: str) -> str:

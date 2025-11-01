@@ -107,10 +107,36 @@
     <div class="col-md-6 mb-4">
         <div class="card">
             <div class="card-header">
-                <h5><i class="bi bi-pie-chart"></i> Poster Categories</h5>
+                <h5><i class="bi bi-grid-3x3-gap"></i> Poster Categories</h5>
             </div>
             <div class="card-body">
-                <div id="category-chart"></div>
+                {% set total = categories.values() | sum %}
+                {% set category_info = [
+                    ('Research', categories.get('Research', 0), 'danger'),
+                    ('Careers and Corporate Internships', categories.get('Careers and Corporate Internships', 0), 'success'),
+                    ('Sigma Pi Sigma Chapter Activities', categories.get('Sigma Pi Sigma Chapter Activities', 0), 'info'),
+                    ('Supporting Our Phase Shifts', categories.get('Supporting Our Phase Shifts', 0), 'warning')
+                ] %}
+                
+                {% for name, count, color in category_info %}
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span class="fw-medium">{{ name }}</span>
+                        <span class="badge bg-{{ color }}">{{ count }} poster{{ 's' if count != 1 else '' }}</span>
+                    </div>
+                    <div class="progress" style="height: 20px;">
+                        <div class="progress-bar bg-{{ color }}" role="progressbar" 
+                             style="width: {{ (count / total * 100) if total > 0 else 0 }}%;" 
+                             aria-valuenow="{{ count }}" aria-valuemin="0" aria-valuemax="{{ total }}">
+                            {% if count / total > 0.15 %}{{ "%.1f"|format(count / total * 100) }}%{% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+                
+                <div class="text-center mt-3 pt-3 border-top">
+                    <small class="text-muted">Total: {{ total }} posters across 4 categories</small>
+                </div>
             </div>
         </div>
     </div>
@@ -189,72 +215,6 @@
 
 {% block extra_js %}
 <script>
-// Category Distribution Pie Chart
-const categoryData = {{ categories | tojson }};
-const categoryColors = ['#3498db', '#e74c3c', '#2ecc71', '#f39c12'];
-
-// Create a larger SVG to accommodate both chart and legend
-const categorySvg = d3.select("#category-chart")
-    .append("svg")
-    .attr("width", 500)
-    .attr("height", 350);
-
-const categoryPie = d3.pie()
-    .value(d => d[1])
-    .sort(null);
-
-// Make the chart smaller and position it to the right
-const categoryArc = d3.arc()
-    .innerRadius(50)
-    .outerRadius(100);
-
-// Position the chart to the right side
-const categoryG = categorySvg.append("g")
-    .attr("transform", "translate(300, 175)");
-
-const categoryArcs = categoryG.selectAll(".arc")
-    .data(categoryPie(Object.entries(categoryData)))
-    .enter().append("g")
-    .attr("class", "arc");
-
-categoryArcs.append("path")
-    .attr("d", categoryArc)
-    .attr("fill", (d, i) => categoryColors[i % categoryColors.length])
-    .attr("stroke", "#fff")
-    .attr("stroke-width", 2);
-
-// Only show text labels for larger segments (Research)
-categoryArcs.append("text")
-    .attr("transform", d => `translate(${categoryArc.centroid(d)})`)
-    .attr("text-anchor", "middle")
-    .attr("font-size", "14px")
-    .attr("font-weight", "bold")
-    .attr("fill", "white")
-    .text(d => d.data[1] > 50 ? d.data[0] : ""); // Only show for segments with >50 items
-
-// Legend positioned to the left with more space
-const legend = categorySvg.append("g")
-    .attr("transform", "translate(20, 30)");
-
-const legendItems = legend.selectAll(".legend-item")
-    .data(Object.entries(categoryData))
-    .enter().append("g")
-    .attr("class", "legend-item")
-    .attr("transform", (d, i) => `translate(0, ${i * 30})`);
-
-legendItems.append("rect")
-    .attr("width", 18)
-    .attr("height", 18)
-    .attr("fill", (d, i) => categoryColors[i % categoryColors.length])
-    .attr("rx", 3);
-
-legendItems.append("text")
-    .attr("x", 25)
-    .attr("y", 13)
-    .attr("font-size", "12px")
-    .attr("font-weight", "500")
-    .text(d => `${d[0]} (${d[1]})`);
-
 // Initialize search suggestions
 document.addEventListener('DOMContentLoaded', function() {
     const searchInput = document.getElementById('searchInput');

@@ -39,6 +39,14 @@ class User(UserMixin, db.Model):
         # Fallback to username check if column doesn't exist
         return self.username == 'admin'
     
+    def is_presenter(self):
+        """Check if user is presenting any posters"""
+        return Poster.query.filter_by(presenter_id=self.id).count() > 0
+    
+    def get_presented_posters(self):
+        """Get list of posters this user is presenting"""
+        return Poster.query.filter_by(presenter_id=self.id).all()
+    
     def __repr__(self):
         return f'<User {self.username}>'
 
@@ -190,6 +198,8 @@ class UserSettings(db.Model):
     # Privacy
     profile_visible = db.Column(db.Boolean, default=True)
     show_activity = db.Column(db.Boolean, default=True)
+    show_presented_posters = db.Column(db.Boolean, default=True)
+    show_research_interests = db.Column(db.Boolean, default=True)
     
     # Recommendations
     exclude_visited_recommendations = db.Column(db.Boolean, default=True)
@@ -215,8 +225,43 @@ class UserSettings(db.Model):
             'email_notifications': self.email_notifications,
             'profile_visible': self.profile_visible,
             'show_activity': self.show_activity,
+            'show_presented_posters': self.show_presented_posters,
+            'show_research_interests': self.show_research_interests,
             'exclude_visited_recommendations': self.exclude_visited_recommendations,
             'recommendations_count': self.recommendations_count
+        }
+
+
+class Connection(db.Model):
+    """Model for user connections/networking"""
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    connected_user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    status = db.Column(db.String(20), default='pending')  # pending, accepted, blocked
+    message = db.Column(db.Text)  # Optional message with connection request
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    user = db.relationship('User', foreign_keys=[user_id], backref='sent_connections')
+    connected_user = db.relationship('User', foreign_keys=[connected_user_id], backref='received_connections')
+    
+    # Ensure unique connections
+    __table_args__ = (db.UniqueConstraint('user_id', 'connected_user_id', name='unique_connection'),)
+    
+    def __repr__(self):
+        return f'<Connection {self.user_id}->{self.connected_user_id}: {self.status}>'
+    
+    def to_dict(self):
+        """Convert to dictionary"""
+        return {
+            'id': self.id,
+            'user_id': self.user_id,
+            'connected_user_id': self.connected_user_id,
+            'status': self.status,
+            'message': self.message,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
 
 

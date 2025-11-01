@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session, abort, make_response
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
-from models import db, User, Poster, Favorite, Visit, PresenterStatus, UserProfile, UserQuery, RecommendationCache, UserSettings, ChangeRequest
+from models import db, User, Poster, Favorite, Visit, PresenterStatus, UserProfile, UserQuery, RecommendationCache, UserSettings, ChangeRequest, Connection
 from config import Config
 from functools import wraps
 import json
@@ -701,6 +701,39 @@ def create_app():
         """Main recommendations page"""
         return render_template('recommendations.html')
     
+    @app.route('/network')
+    @login_required
+    def network_page():
+        """Network page for finding and connecting with similar users"""
+        return render_template('network.html')
+    
+    @app.route('/user/<username>')
+    def user_profile(username):
+        """View user profile page"""
+        user = User.query.filter_by(username=username).first()
+        if not user:
+            abort(404)
+        
+        # Check privacy settings
+        user_settings = UserSettings.query.filter_by(user_id=user.id).first()
+        if user_settings and not user_settings.profile_visible and user.id != current_user.id if current_user.is_authenticated else True:
+            flash('This profile is private')
+            return redirect(url_for('index'))
+        
+        # Get user's presented posters
+        presented_posters = user.get_presented_posters() if user.is_presenter() else []
+        
+        # Get user's research interests
+        from utils.recommendation_engine import ProfileBuilder
+        profile_builder = ProfileBuilder(user)
+        profile = profile_builder.build_profile()
+        
+        return render_template('user_profile.html',
+                             profile_user=user,
+                             presented_posters=presented_posters,
+                             profile=profile,
+                             user_settings=user_settings)
+    
     @app.route('/api/recommend/query', methods=['POST'])
     def recommend_from_query():
         """Process natural language query and return recommendations"""
@@ -878,7 +911,9 @@ def create_app():
                     'full_name': user.get_full_name(),
                     'score': round(rec['score'], 3),
                     'shared_posters': rec['shared_posters'],
-                    'shared_categories': rec['categories']
+                    'shared_categories': rec['categories'],
+                    'is_presenter': rec.get('is_presenter', False),
+                    'presentation_topics': rec.get('presentation_topics', [])
                 })
             
             return jsonify({
@@ -1368,6 +1403,148 @@ def create_app():
             'status': 'success',
             'message': 'All posters unassigned successfully'
         })
+    
+    # Connection/Networking Routes
+    @app.route('/api/connect/<int:user_id>', methods=['POST'])
+    @login_required
+    def send_connection_request(user_id):
+        """Send a connection request to another user"""
+        try:
+            if user_id == current_user.id:
+                return jsonify({'status': 'error', 'message': 'Cannot connect with yourself'}), 400
+            
+            target_user = User.query.get(user_id)
+            if not target_user:
+                return jsonify({'status': 'error', 'message': 'User not found'}), 404
+            
+            # Check if connection already exists
+            existing = Connection.query.filter(
+                ((Connection.user_id == current_user.id) & (Connection.connected_user_id == user_id)) |
+                ((Connection.user_id == user_id) & (Connection.connected_user_id == current_user.id))
+            ).first()
+            
+            if existing:
+                return jsonify({'status': 'error', 'message': 'Connection already exists'}), 400
+            
+            # Create connection request
+            data = request.get_json() or {}
+            connection = Connection(
+                user_id=current_user.id,
+                connected_user_id=user_id,
+                message=data.get('message'),
+                status='pending'
+            )
+            db.session.add(connection)
+            db.session.commit()
+            
+            return jsonify({
+                'status': 'success',
+                'message': 'Connection request sent',
+                'connection': connection.to_dict()
+            })
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'status': 'error', 'message': str(e)}), 500
+    
+    @app.route('/api/connections')
+    @login_required
+    def get_connections():
+        """Get user's connections"""
+        try:
+            # Get accepted connections (bidirectional)
+            sent = Connection.query.filter_by(user_id=current_user.id, status='accepted').all()
+            received = Connection.query.filter_by(connected_user_id=current_user.id, status='accepted').all()
+            
+            connections = []
+            for conn in sent:
+                connections.append({
+                    **conn.to_dict(),
+                    'user': conn.connected_user.get_full_name(),
+                    'username': conn.connected_user.username
+                })
+            for conn in received:
+                connections.append({
+                    **conn.to_dict(),
+                    'user': conn.user.get_full_name(),
+                    'username': conn.user.username
+                })
+            
+            return jsonify({
+                'status': 'success',
+                'connections': connections
+            })
+        except Exception as e:
+            return jsonify({'status': 'error', 'message': str(e)}), 500
+    
+    @app.route('/api/connections/pending')
+    @login_required
+    def get_pending_connections():
+        """Get pending connection requests"""
+        try:
+            # Get received pending requests
+            pending = Connection.query.filter_by(connected_user_id=current_user.id, status='pending').all()
+            
+            formatted = []
+            for conn in pending:
+                formatted.append({
+                    **conn.to_dict(),
+                    'from_user': conn.user.get_full_name(),
+                    'from_username': conn.user.username
+                })
+            
+            return jsonify({
+                'status': 'success',
+                'pending': formatted
+            })
+        except Exception as e:
+            return jsonify({'status': 'error', 'message': str(e)}), 500
+    
+    @app.route('/api/connections/<int:connection_id>/accept', methods=['POST'])
+    @login_required
+    def accept_connection(connection_id):
+        """Accept a connection request"""
+        try:
+            connection = Connection.query.get(connection_id)
+            if not connection:
+                return jsonify({'status': 'error', 'message': 'Connection not found'}), 404
+            
+            if connection.connected_user_id != current_user.id:
+                return jsonify({'status': 'error', 'message': 'Unauthorized'}), 403
+            
+            connection.status = 'accepted'
+            db.session.commit()
+            
+            return jsonify({
+                'status': 'success',
+                'message': 'Connection accepted',
+                'connection': connection.to_dict()
+            })
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'status': 'error', 'message': str(e)}), 500
+    
+    @app.route('/api/connections/<int:connection_id>/decline', methods=['POST'])
+    @login_required
+    def decline_connection(connection_id):
+        """Decline a connection request"""
+        try:
+            connection = Connection.query.get(connection_id)
+            if not connection:
+                return jsonify({'status': 'error', 'message': 'Connection not found'}), 404
+            
+            if connection.connected_user_id != current_user.id:
+                return jsonify({'status': 'error', 'message': 'Unauthorized'}), 403
+            
+            db.session.delete(connection)
+            db.session.commit()
+            
+            return jsonify({
+                'status': 'success',
+                'message': 'Connection declined'
+            })
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'status': 'error', 'message': str(e)}), 500
     
     return app
 
